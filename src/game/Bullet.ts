@@ -37,23 +37,55 @@ export class BulletManager {
         });
     }
 
-    update(polygons: MapPolygon[]): { hitBullets: BulletData[]; hitPositions: Vector2[]; hitNormals: Vector2[] } {
+    update(
+        polygons: MapPolygon[],
+        players: { pos: Vector2; radius: number; health: number; die: (p: any) => void }[]
+    ): { hitBullets: BulletData[]; hitPositions: Vector2[]; hitNormals: Vector2[]; hitPlayers: any[] } {
         const hitBullets: BulletData[] = [];
         const hitPositions: Vector2[] = [];
         const hitNormals: Vector2[] = [];
+        const hitPlayers: any[] = [];
         const alive: BulletData[] = [];
 
         for (const b of this.bullets) {
             // Apply gravity
             b.vel.y += b.gravity;
 
-            // Store old position for trail rendering
             const oldPos = b.pos.clone();
-
-            // Raycast from old to new position to check for wall hits
             const moveDir = b.vel.normalize();
             const moveDist = b.vel.length();
+
+            // 1. Check for wall hits
             const hit = raycastMap(b.pos, moveDir, moveDist, polygons);
+
+            // 2. Check for player hits
+            let playerHit = null;
+            let playerHitDist = hit.hit ? hit.distance : moveDist;
+
+            for (const p of players) {
+                // Simplified circle hit check along the bullet path
+                // For better accuracy, we should use ray-vs-circle
+                const toPlayer = p.pos.sub(b.pos);
+                const projection = toPlayer.dot(moveDir);
+
+                if (projection > 0 && projection < playerHitDist) {
+                    const closestPoint = b.pos.add(moveDir.scale(projection));
+                    const distToPlayerLine = closestPoint.distance(p.pos);
+
+                    if (distToPlayerLine < p.radius + 2) { // +2 for bullet thickness
+                        playerHit = p;
+                        playerHitDist = projection;
+                    }
+                }
+            }
+
+            if (playerHit) {
+                hitBullets.push(b);
+                hitPositions.push(b.pos.add(moveDir.scale(playerHitDist)));
+                hitNormals.push(moveDir.scale(-1));
+                hitPlayers.push({ player: playerHit, damage: b.damage });
+                continue;
+            }
 
             if (hit.hit) {
                 hitBullets.push(b);
@@ -61,6 +93,7 @@ export class BulletManager {
                 hitNormals.push(hit.normal);
                 continue;
             }
+
 
             // Move bullet
             b.pos.addMut(b.vel);
@@ -72,28 +105,31 @@ export class BulletManager {
         }
 
         this.bullets = alive;
-        return { hitBullets, hitPositions, hitNormals };
+        return { hitBullets, hitPositions, hitNormals, hitPlayers };
     }
+
 
     render(ctx: CanvasRenderingContext2D): void {
         for (const b of this.bullets) {
             const alpha = b.lifetime / b.maxLifetime;
-            const tailPos = b.pos.sub(b.vel.scale(0.6));
+            // Short trail: 1.2x velocity length
+            const tailPos = b.pos.sub(b.vel.scale(1.2));
 
             ctx.beginPath();
             ctx.moveTo(tailPos.x, tailPos.y);
             ctx.lineTo(b.pos.x, b.pos.y);
-            ctx.strokeStyle = b.trailColor;
-            ctx.lineWidth = 2;
+
+            // If it's a special weapon like LAW, use its color. Otherwise, white trail.
+            const isSpecial = b.trailColor !== '#fff' && b.trailColor !== '#ffffff' && b.trailColor !== 'yellow';
+            ctx.strokeStyle = isSpecial ? b.trailColor : 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1.5;
             ctx.globalAlpha = alpha;
             ctx.stroke();
-            ctx.globalAlpha = 1;
 
-            // Bullet head glow
-            ctx.beginPath();
-            ctx.arc(b.pos.x, b.pos.y, 2, 0, Math.PI * 2);
+            // Bullet head (small points)
             ctx.fillStyle = '#fff';
-            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillRect(b.pos.x - 0.5, b.pos.y - 0.5, 1, 1);
         }
     }
 }

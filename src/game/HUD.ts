@@ -1,11 +1,15 @@
 import { Player } from './Player';
 import { WEAPONS } from './Weapon';
+import { IInput } from '../engine/IInput';
+import { Vector2 } from '../engine/Vector2';
 
 /**
  * In-game HUD rendering: health bar, fuel gauge, ammo, weapon name, crosshair.
  */
 export class HUD {
-    render(ctx: CanvasRenderingContext2D, player: Player, screenW: number, screenH: number): void {
+    render(ctx: CanvasRenderingContext2D, player: Player, input: IInput, screenW: number, screenH: number): void {
+        const isMenuOpen = input.isKeyDown('KeyG') || input.isKeyDown('Escape');
+
         if (player.isDead) {
             this.renderDeathScreen(ctx, player, screenW, screenH);
             return;
@@ -13,105 +17,231 @@ export class HUD {
 
         ctx.save();
 
+        // Layout constants
+        const hudH = 70;
+        const hudY = screenH - hudH;
+        const padding = 30;
+        const colCount = 3;
+        const totalGap = 60;
+        const colW = (screenW - (padding * 2) - totalGap) / colCount;
+
+        // Background strip (optional, for readability)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(0, hudY, screenW, hudH);
+
         // ==================
-        // Health Bar (bottom-left)
+        // Column 1: Health
         // ==================
-        const barX = 20;
-        const barY = screenH - 50;
-        const barW = 180;
-        const barH = 14;
+        const col1X = padding;
+        const centerY = hudY + hudH / 2;
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
-
-        // Health fill
-        const healthPercent = player.health / player.maxHealth;
-        const healthColor = healthPercent > 0.5
-            ? `hsl(${120 * healthPercent}, 80%, 45%)`
-            : `hsl(${120 * healthPercent}, 90%, 50%)`;
-        ctx.fillStyle = healthColor;
-        ctx.fillRect(barX, barY, barW * healthPercent, barH);
-
-        // Health text
+        // Large Number
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px monospace';
+        ctx.font = 'bold 36px "Outfit", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`HP ${Math.ceil(player.health)}`, barX + 4, barY + 11);
+        ctx.textBaseline = 'middle';
+        const healthVal = Math.ceil(player.health);
+        ctx.fillText(healthVal.toString(), col1X, centerY);
+        const numberOffset = ctx.measureText(healthVal.toString()).width + 12;
+
+        // Visual Bar
+        const barStartX = col1X + numberOffset;
+        const barW = colW - numberOffset;
+        const barH = 14;
+        const barY = centerY - barH / 2;
+
+        // Bar BG
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(barStartX, barY, barW, barH);
+
+        // Bar Fill
+        const healthPercent = player.health / player.maxHealth;
+        const healthColor = healthPercent > 0.4 ? '#4ade80' : '#f87171'; // Green to Red
+        ctx.fillStyle = healthColor;
+        ctx.fillRect(barStartX, barY, barW * healthPercent, barH);
+
+        // Label
+        ctx.font = '10px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText("HEALTH / HP", barStartX, barY - 8);
 
         // ==================
-        // Fuel Gauge (below health)
+        // Column 2: Ammo
         // ==================
-        const fuelY = barY + barH + 6;
-        const fuelH = 8;
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(barX - 2, fuelY - 2, barW + 4, fuelH + 4);
-
-        const fuelPercent = player.fuel / player.maxFuel;
-        ctx.fillStyle = fuelPercent > 0.3
-            ? `hsl(200, 80%, ${40 + fuelPercent * 20}%)`
-            : `hsl(30, 90%, 50%)`;
-        ctx.fillRect(barX, fuelY, barW * fuelPercent, fuelH);
-
-        ctx.fillStyle = '#aaddff';
-        ctx.font = '9px monospace';
-        ctx.fillText(`FUEL`, barX + 4, fuelY + 7);
-
-        // ==================
-        // Weapon & Ammo (bottom-right)
-        // ==================
+        const col2X = padding + colW + totalGap / 2;
         const weapon = WEAPONS[player.currentWeaponIndex];
-        const ammo = player.ammo[player.currentWeaponIndex];
+        const ammoCurrent = player.ammo[player.currentWeaponIndex];
 
-        ctx.textAlign = 'right';
-        ctx.font = 'bold 14px monospace';
+        // Large Number
         ctx.fillStyle = '#fff';
-        ctx.fillText(weapon.name, screenW - 20, screenH - 50);
+        ctx.font = 'bold 36px "Outfit", sans-serif';
+        ctx.textAlign = 'left';
+        const ammoStr = player.reloading ? '--' : ammoCurrent.toString();
+        ctx.fillText(ammoStr, col2X, centerY);
+        const ammoNumberOffset = ctx.measureText(ammoStr).width + 12;
 
-        ctx.font = 'bold 20px monospace';
-        if (player.reloading) {
-            ctx.fillStyle = '#ff8844';
-            ctx.fillText('RELOADING...', screenW - 20, screenH - 28);
-        } else {
-            ctx.fillStyle = ammo > 0 ? '#fff' : '#ff4444';
-            ctx.fillText(`${ammo} / ${weapon.magazineSize}`, screenW - 20, screenH - 28);
+        // Visual Bar
+        const ammoBarStartX = col2X + ammoNumberOffset;
+        const ammoBarW = colW - ammoNumberOffset;
+        const ammoBarY = centerY - barH / 2;
+
+        // Bar BG
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(ammoBarStartX, ammoBarY, ammoBarW, barH);
+
+        // Bar Fill (Ammo in Mag)
+        const ammoPercent = ammoCurrent / weapon.magazineSize;
+        ctx.fillStyle = '#facc15'; // Yellow
+        ctx.fillRect(ammoBarStartX, ammoBarY, ammoBarW * ammoPercent, barH);
+
+        // Label / Weapon Name
+        ctx.font = '10px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        const weaponLabel = player.reloading ? `RELOADING ${weapon.name}...` : weapon.name;
+        ctx.fillText(weaponLabel.toUpperCase(), ammoBarStartX, ammoBarY - 8);
+
+        // ==================
+        // Column 3: Jetpack Fuel
+        // ==================
+        const col3X = padding + (colW + totalGap / 2) * 2;
+        const fuelPercent = player.fuel / player.maxFuel;
+        const fuelVal = Math.ceil(fuelPercent * 100);
+
+        // Large Number
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 36px "Outfit", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(fuelVal.toString(), col3X, centerY);
+        const fuelNumberOffset = ctx.measureText(fuelVal.toString()).width + 12;
+
+        // Visual Bar
+        const fuelBarStartX = col3X + fuelNumberOffset;
+        const fuelBarW = colW - fuelNumberOffset;
+        const fuelBarY = centerY - barH / 2;
+
+        // Bar BG
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(fuelBarStartX, fuelBarY, fuelBarW, barH);
+
+        // Bar Fill
+        ctx.fillStyle = '#38bdf8'; // Blue
+        ctx.fillRect(fuelBarStartX, fuelBarY, fuelBarW * fuelPercent, barH);
+
+        // Label
+        ctx.font = '10px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText("JETPACK FUEL %", fuelBarStartX, fuelBarY - 8);
+
+        // Grenades counter
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px "Inter", sans-serif';
+        ctx.fillText(`GRENADES: ${player.grenadeCount}`, col3X, centerY + 24);
+
+        // Slot indicators
+        const slotXPos = screenW / 2 - 40;
+        const slotYPos = hudY + 8;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = player.activeSlot === 1 ? '#fff' : 'rgba(255,255,255,0.3)';
+        ctx.fillText("[ 1 ]", slotXPos, slotYPos);
+        ctx.fillStyle = player.activeSlot === 2 ? '#fff' : 'rgba(255,255,255,0.3)';
+        ctx.fillText("[ 2 ]", slotXPos + 80, slotYPos);
+
+        // Grenade Charge Bar
+        if (player.isChargingGrenade) {
+            const gBarW = 100;
+            const gBarH = 3;
+            const gx = screenW / 2 - gBarW / 2;
+            const gy = slotYPos - 12;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fillRect(gx, gy, gBarW, gBarH);
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(gx, gy, gBarW * player.grenadeCharge, gBarH);
         }
 
-        // ==================
-        // Weapon slots (bottom center)
-        // ==================
-        const slotW = 28;
-        const slotH = 22;
-        const totalW = WEAPONS.length * (slotW + 4);
-        const slotStartX = (screenW - totalW) / 2;
-        const slotY = screenH - 32;
-
-        for (let i = 0; i < WEAPONS.length; i++) {
-            const sx = slotStartX + i * (slotW + 4);
-            const isActive = i === player.currentWeaponIndex;
-
-            ctx.fillStyle = isActive ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.4)';
-            ctx.fillRect(sx, slotY, slotW, slotH);
-
-            if (isActive) {
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(sx, slotY, slotW, slotH);
-            }
-
-            ctx.fillStyle = isActive ? '#fff' : '#888';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${i + 1}`, sx + slotW / 2, slotY + 15);
+        if (isMenuOpen) {
+            this.renderWeaponMenu(ctx, player, input, screenW, screenH);
         }
-
-        // ==================
-        // Crosshair
-        // ==================
-        this.renderCrosshair(ctx, screenW, screenH);
 
         ctx.restore();
+    }
+
+    private renderWeaponMenu(ctx: CanvasRenderingContext2D, player: Player, input: IInput, screenW: number, screenH: number): void {
+        const menuW = 400;
+        const menuH = 480;
+        const x = (screenW - menuW) / 2;
+        const y = (screenH - menuH) / 2;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.fillRect(x, y, menuW, menuH);
+        ctx.strokeRect(x, y, menuW, menuH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 24px "Outfit", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText("ARMAMENTO (G)", x + menuW / 2, y + 40);
+
+        ctx.font = '700 14px "Inter", sans-serif';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText("PRIMÁRIAS", x + menuW / 2, y + 75);
+
+        const itemH = 22;
+        let currentY = y + 100;
+
+        for (let i = 0; i < WEAPONS.length; i++) {
+            const w = WEAPONS[i];
+            const isHover = input.mouseX > x + 40 && input.mouseX < x + menuW - 40 &&
+                input.mouseY > currentY - 15 && input.mouseY < currentY + 5;
+
+            const isSelected = player.primaryWeaponIndex === i || player.secondaryWeaponIndex === i;
+
+            if (w.type === 'primary') {
+                ctx.fillStyle = isHover ? '#fff' : (isSelected ? '#facc15' : 'rgba(255,255,255,0.6)');
+                ctx.font = isHover ? 'bold 15px "Inter", sans-serif' : '13px "Inter", sans-serif';
+                ctx.textAlign = 'left';
+                const keyHint = i < 9 ? `${i + 1}` : (i === 9 ? '0' : '');
+                ctx.fillText(`${keyHint} ${w.name}`, x + 60, currentY);
+
+                if (isHover && input.mouseLeftJustPressed) {
+                    player.setWeaponToActiveSlot(i);
+                }
+                currentY += itemH;
+            }
+        }
+
+        currentY += 15;
+        ctx.font = '700 14px "Inter", sans-serif';
+        ctx.fillStyle = '#aaa';
+        ctx.textAlign = 'center';
+        ctx.fillText("SECUNDÁRIAS", x + menuW / 2, currentY);
+        currentY += 25;
+
+        for (let i = 0; i < WEAPONS.length; i++) {
+            const w = WEAPONS[i];
+            if (w.type === 'secondary') {
+                const isHover = input.mouseX > x + 40 && input.mouseX < x + menuW - 40 &&
+                    input.mouseY > currentY - 15 && input.mouseY < currentY + 5;
+                const isSelected = player.primaryWeaponIndex === i || player.secondaryWeaponIndex === i;
+
+                ctx.fillStyle = isHover ? '#fff' : (isSelected ? '#facc15' : 'rgba(255,255,255,0.6)');
+                ctx.font = isHover ? 'bold 15px "Inter", sans-serif' : '13px "Inter", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(w.name, x + 60, currentY);
+
+                if (isHover && input.mouseLeftJustPressed) {
+                    player.setWeaponToActiveSlot(i);
+                }
+                currentY += itemH;
+            }
+        }
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = 'italic 11px "Inter", sans-serif';
+        ctx.fillText("Clique para selecionar na vaga ativa", x + menuW / 2, y + menuH - 20);
+
     }
 
     private renderCrosshair(ctx: CanvasRenderingContext2D, screenW: number, screenH: number): void {

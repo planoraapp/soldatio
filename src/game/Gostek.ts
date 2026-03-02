@@ -46,13 +46,21 @@ export class Gostek {
         aimAngle: number,
         isCrouching: boolean,
         weaponName: string,
-        reloadProgress: number = 0 // 0 to 1
+        reloadProgress: number = 0, // 0 to 1
+        rotation: number = 0,
+        isRolling: boolean = false
     ): void {
         ctx.save();
         ctx.translate(pos.x, pos.y);
 
+        // Apply rotation
+        if (rotation !== 0) {
+            ctx.rotate(rotation);
+        }
+
         const dir = this.facingDir;
-        const crouchOffset = isCrouching ? 4 : 0;
+        // Ball up more if rolling
+        const crouchOffset = isRolling ? 12 : (isCrouching ? 4 : 0);
 
         // ========== RELOAD BAR ==========
         if (reloadProgress > 0 && reloadProgress < 1) {
@@ -96,7 +104,25 @@ export class Gostek {
         ctx.fill();
 
         // ========== ARMS & WEAPON ==========
-        this.renderArms(ctx, aimAngle, dir, torsoY, weaponName);
+        if (!isRolling) {
+            this.renderArms(ctx, aimAngle, dir, torsoY, weaponName);
+        } else {
+            // Draw a pulsing border and a ball-like torso
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.05) * 0.3;
+            ctx.beginPath();
+            ctx.arc(0, torsoY + 4, 14, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // Optional: draw legs tucked in
+            ctx.fillStyle = this.pantsColor;
+            ctx.beginPath();
+            ctx.arc(-4 * dir, torsoY + 8, 4, 0, Math.PI * 2);
+            ctx.arc(4 * dir, torsoY + 8, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.restore();
     }

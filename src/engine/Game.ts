@@ -2,11 +2,15 @@ import { Vector2 } from './Vector2';
 import { Input } from './Input';
 import { Camera } from './Camera';
 import { Player } from '../game/Player';
+import { Bot } from '../game/Bot';
 import { GameMap, Material } from '../game/GameMap';
 import { BulletManager } from '../game/Bullet';
 import { ParticleSystem } from '../game/Particles';
 import { HUD } from '../game/HUD';
 import { WeatherSystem } from '../game/Weather';
+import { GrenadeManager } from '../game/Grenade';
+import { PickupManager } from '../game/PickupManager';
+import { TouchControls } from './TouchControls';
 import { enhancedTestMap } from '../game/maps/enhancedTestMap';
 import { GUIManager, GameUIState } from './GUIManager';
 
@@ -20,10 +24,14 @@ export class Game {
     camera: Camera;
     map: GameMap;
     player: Player;
+    bots: Bot[] = [];
     bullets: BulletManager;
+    grenades: GrenadeManager;
+    pickups: PickupManager;
     particles: ParticleSystem;
     weather: WeatherSystem;
     hud: HUD;
+    touchControls: TouchControls;
     gui: GUIManager;
 
     state: GameUIState = 'MAIN_MENU';
@@ -45,13 +53,24 @@ export class Game {
         const spawnPos = this.map.getRandomSpawn();
         this.player = new Player(spawnPos);
         this.player.spawnProvider = () => this.map.getRandomSpawn();
+
+        // Add some bots
+        for (let i = 0; i < 3; i++) {
+            const bot = new Bot(this.map.getRandomSpawn());
+            bot.spawnProvider = () => this.map.getRandomSpawn();
+            this.bots.push(bot);
+        }
+
         this.bullets = new BulletManager();
+        this.grenades = new GrenadeManager();
+        this.pickups = new PickupManager();
         this.particles = new ParticleSystem(
             enhancedTestMap.bounds.right - enhancedTestMap.bounds.left,
             enhancedTestMap.bounds.bottom - enhancedTestMap.bounds.top
         );
         this.weather = new WeatherSystem(enhancedTestMap.weather || { type: 'none', intensity: 0, windX: 0 });
         this.hud = new HUD();
+        this.touchControls = new TouchControls(this.canvas);
         this.gui = new GUIManager();
 
         // Initial menu screen
@@ -118,48 +137,76 @@ export class Game {
         // Update mouse world coordinates
         this.input.updateMouseWorld(this.camera.x, this.camera.y, this.camera.scale);
 
-        // Update player
         const collisionPolygons = this.map.getPlayerCollisionPolygons();
-        this.player.update(this.input, collisionPolygons, this.bullets, this.particles, 1);
+        const bulletPolygons = this.map.getBulletCollisionPolygons();
+
+        // 1. Update player
+        const allPlayers = [this.player, ...this.bots];
+
+        // Update mobile controls
+        this.touchControls.update(this.input, this.player, allPlayers);
+        this.player.update(this.input, collisionPolygons, this.bullets, this.grenades, this.particles, allPlayers);
+        this.player.enforceBounds(this.map.data.bounds);
+
+        // 2. Update bots
+        for (const bot of this.bots) {
+            bot.updateBot(this.player, collisionPolygons, this.bullets, this.grenades, this.particles, allPlayers);
+            bot.enforceBounds(this.map.data.bounds);
+        }
+
+        // 3. Update Grenades
+        this.grenades.update(collisionPolygons, this.particles, allPlayers);
+
+        // 3a. Update Pickups
+        if (this.map.data.pickups) {
+            this.pickups.update(this.map.data.pickups, allPlayers, this.particles);
+        }
 
         // Spawn footstep particles
         if (this.player.isGrounded && Math.abs(this.player.vel.x) > 1) {
-            // Find material under player (simplification: find first overlapping solid)
             const footPos = this.player.pos.add(new Vector2(0, this.player.radius));
             const material = this.getMaterialAt(footPos) || Material.DIRT;
             this.particles.spawnFootstepDust(footPos, material, this.player.vel.x);
         }
 
-        // Update bullets
-        const bulletPolygons = this.map.getBulletCollisionPolygons();
-        const { hitBullets, hitPositions, hitNormals } = this.bullets.update(bulletPolygons);
+        // 4. Update bullets
+        const { hitBullets, hitPositions, hitNormals, hitPlayers } = this.bullets.update(bulletPolygons, allPlayers);
 
-        // Spawn particles at bullet impact points (material specific)
+        // Handle bullet impacts on materials
         for (let i = 0; i < hitPositions.length; i++) {
             const material = this.getMaterialAt(hitPositions[i]) || Material.CONCRETE;
             this.particles.spawnMaterialImpact(hitPositions[i], hitNormals[i], material);
+        }
+
+        // Handle bullet damage to players/bots
+        for (const hit of hitPlayers) {
+            hit.player.takeDamage(hit.damage, this.particles);
         }
 
         // Update systems
         this.particles.update();
         this.weather.update();
 
-        // Update camera
+        // Update camera (follow player)
         this.camera.follow(
             this.player.pos,
             this.input.mouseWorldX,
             this.input.mouseWorldY
         );
 
-        // Out of bounds check
+        // Death pits check
         const bounds = this.map.data.bounds;
         if (this.player.pos.y > bounds.bottom + 200) {
             this.player.die(this.particles);
         }
+        for (const bot of this.bots) {
+            if (bot.pos.y > bounds.bottom + 200) {
+                bot.die(this.particles);
+            }
+        }
     }
 
     private getMaterialAt(pos: Vector2): Material | null {
-        // Very basic point-in-polygon check to find material
         for (const poly of this.map.data.polygons) {
             if (this.isPointInPoly(pos, poly.vertices)) {
                 return poly.material || Material.CONCRETE;
@@ -184,55 +231,44 @@ export class Game {
         const w = this.canvas.width;
         const h = this.canvas.height;
 
-        // Clear
         ctx.clearRect(0, 0, w, h);
 
-        // 1. Sky Background (screen-space)
         this.map.renderBackground(ctx, w, h);
-
-        // 2. Parallax Layers (Behind)
         this.map.renderParallaxBehind(ctx, this.camera.x, this.camera.y, w, h);
 
-        // Apply camera transform for world-space objects
         ctx.save();
         ctx.translate(-this.camera.x * this.camera.scale, -this.camera.y * this.camera.scale);
         ctx.scale(this.camera.scale, this.camera.scale);
 
-        // 3. Persistent blood decals
         this.particles.renderPersistent(ctx);
-
-        // 4. Scenery (Behind players)
         this.map.renderSceneryBehind(ctx);
-
-        // 5. Map polygons (Core Geometry)
         this.map.render(ctx);
-
-        // 6. Bullets
+        this.grenades.render(ctx);
+        if (this.map.data.pickups) {
+            this.pickups.render(ctx, this.map.data.pickups);
+        }
         this.bullets.render(ctx);
 
-        // 7. Player
+        // Render players and bots
         this.player.render(ctx);
+        for (const bot of this.bots) {
+            bot.render(ctx);
+        }
 
-        // 8. Active particles
         this.particles.render(ctx);
-
-        // 9. Scenery (In front of players)
         this.map.renderSceneryFront(ctx);
-
         ctx.restore();
 
-        // 10. Weather (screen-space)
         this.weather.render(ctx);
-
-        // 11. HUD (screen-space)
-        this.hud.render(ctx, this.player, w, h);
+        this.hud.render(ctx, this.player, this.input, w, h);
+        this.touchControls.render(ctx);
         this.hud.renderCrosshairAt(ctx, this.input.mouseX, this.input.mouseY);
 
-        // UI Text
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(`Soldat Web v0.1 | ${this.map.data.name}`, 10, 16);
+        ctx.fillText(`Soldat Web v0.1 | ${this.map.data.name} | BOTS: ${this.bots.length}`, 10, 16);
     }
 }
+
 

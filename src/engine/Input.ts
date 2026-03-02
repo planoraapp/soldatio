@@ -1,4 +1,6 @@
-export class Input {
+import { IInput } from './IInput';
+
+export class Input implements IInput {
     private keys: Set<string> = new Set();
     private keysJustPressed: Set<string> = new Set();
     private keysJustReleased: Set<string> = new Set();
@@ -23,8 +25,8 @@ export class Input {
             }
             this.keys.add(e.code);
 
-            // Don't prevent default for critical system keys like Escape, F12, etc.
-            if (e.code !== 'Escape' && !e.code.startsWith('F')) {
+            // Allow preventDefault for Escape so we can use it for our menu
+            if (!e.code.startsWith('F')) {
                 e.preventDefault();
             }
         });
@@ -62,6 +64,17 @@ export class Input {
     isKeyDown(code: string): boolean { return this.keys.has(code); }
     isKeyJustPressed(code: string): boolean { return this.keysJustPressed.has(code); }
     isKeyJustReleased(code: string): boolean { return this.keysJustReleased.has(code); }
+
+    /** Manual setters for mobile buttons */
+    setKeyDown(code: string, down: boolean): void {
+        if (down) {
+            if (!this.keys.has(code)) this.keysJustPressed.add(code);
+            this.keys.add(code);
+        } else {
+            if (this.keys.has(code)) this.keysJustReleased.add(code);
+            this.keys.delete(code);
+        }
+    }
 
     /** Call at end of frame to clear per-frame state */
     endFrame(): void {

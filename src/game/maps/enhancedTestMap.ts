@@ -1,5 +1,5 @@
 import { Vector2 } from '../../engine/Vector2';
-import { MapData, PolygonType, Material } from '../GameMap';
+import { MapData, PolygonType, Material, PickupType } from '../GameMap';
 
 /**
  * A rich, larger test arena featuring:
@@ -14,6 +14,7 @@ export const enhancedTestMap: MapData = {
     bgColor: '#0a0a1a',
     bgGradientTop: '#050510',
     bgGradientBottom: '#1a1a3a',
+    bgImage: '/skytest.png',
     bounds: { left: -500, top: -800, right: 3000, bottom: 1200 },
 
     weather: {
@@ -30,26 +31,33 @@ export const enhancedTestMap: MapData = {
         { position: new Vector2(2500, 450), team: 2 },
     ],
 
+    pickups: [
+        { x: 150, y: 485, type: PickupType.HEALTH, timer: 0 },
+        { x: 1350, y: 185, type: PickupType.GRENADES, timer: 0 },
+        { x: 2500, y: 485, type: PickupType.HEALTH, timer: 0 },
+        { x: 600, y: 485, type: PickupType.GRENADES, timer: 0 },
+    ],
+
     parallaxLayers: [
         {
             zIndex: -2,
-            scrollFactor: 0.1,
+            scrollFactor: 0.05,
             elements: [
-                { type: 'circle', x: 800, y: 100, radius: 40, color: 'rgba(255, 255, 255, 0.05)' }, // Moon
-                { type: 'polygon', x: 200, y: 400, vertices: [new Vector2(0, 0), new Vector2(400, -150), new Vector2(800, 0)], color: 'rgba(30, 30, 60, 0.3)' }, // Distant mountains
-                { type: 'polygon', x: 1200, y: 400, vertices: [new Vector2(0, 0), new Vector2(500, -200), new Vector2(1000, 0)], color: 'rgba(25, 25, 55, 0.3)' },
+                { type: 'rect', x: 200, y: 100, width: 250, height: 150, image: '/cloud1.png', color: 'white', opacity: 0.3 },
+                { type: 'rect', x: 1200, y: 50, width: 300, height: 180, image: '/cloud2.png', color: 'white', opacity: 0.25 },
+                { type: 'rect', x: 2200, y: 150, width: 200, height: 120, image: '/cloud3.png', color: 'white', opacity: 0.35 },
             ]
         },
         {
             zIndex: -1,
-            scrollFactor: 0.3,
+            scrollFactor: 0.15,
             elements: [
-                { type: 'rect', x: 0, y: 300, width: 120, height: 400, color: 'rgba(40, 40, 80, 0.4)' }, // Distant building
-                { type: 'rect', x: 600, y: 250, width: 150, height: 500, color: 'rgba(35, 35, 75, 0.4)' },
-                { type: 'rect', x: 1800, y: 280, width: 200, height: 450, color: 'rgba(40, 40, 80, 0.4)' },
+                { type: 'rect', x: 600, y: 200, width: 400, height: 250, image: '/cloud4.png', color: 'white', opacity: 0.4 },
+                { type: 'rect', x: 1800, y: 150, width: 350, height: 220, image: '/cloud1.png', color: 'white', opacity: 0.3 },
             ]
         }
     ],
+
 
     scenery: [
         { x: 300, y: 490, type: 'crate', zIndex: -1 },

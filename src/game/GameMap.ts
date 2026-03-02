@@ -76,6 +76,7 @@ export interface ParallaxElement {
     vertices?: Vector2[];
     color: string;
     opacity?: number;
+    image?: string;
 }
 
 /** Scenery decoration (props) */
@@ -91,11 +92,28 @@ export interface SceneryItem {
     team?: number;
 }
 
-/** Weather config */
+export enum PickupType {
+    HEALTH = 'health',
+    GRENADES = 'grenades'
+}
+
+export interface PickupData {
+    x: number;
+    y: number;
+    type: PickupType;
+    /** Current status: 0 available, >0 respawning in frames */
+    timer: number;
+}
+
+export interface SpawnPoint {
+    position: Vector2;
+    team: number;
+}
+
 export interface WeatherConfig {
     type: 'none' | 'rain' | 'snow' | 'ash';
-    intensity: number; // 0-1
-    windX: number;     // horizontal wind force
+    intensity: number;
+    windX: number;
     color?: string;
 }
 
@@ -106,6 +124,7 @@ export interface MapData {
     bgColor: string;
     bgGradientTop: string;
     bgGradientBottom: string;
+    bgImage?: string;
     bounds: { left: number; top: number; right: number; bottom: number };
     /** Parallax background layers */
     parallaxLayers?: ParallaxLayer[];
@@ -113,6 +132,8 @@ export interface MapData {
     scenery?: SceneryItem[];
     /** Weather effect */
     weather?: WeatherConfig;
+    /** Health and grenade boxes */
+    pickups?: PickupData[];
 }
 
 // ========================
@@ -121,22 +142,47 @@ export interface MapData {
 
 export class GameMap {
     data: MapData;
+    private skyImage: HTMLImageElement | null = null;
+    private imageCache: Map<string, HTMLImageElement> = new Map();
 
     constructor(data: MapData) {
         this.data = data;
+        if (data.bgImage) {
+            this.skyImage = this.getImage(data.bgImage);
+        }
+        // Pre-load parallax images
+        if (data.parallaxLayers) {
+            for (const layer of data.parallaxLayers) {
+                for (const el of layer.elements) {
+                    if (el.image) this.getImage(el.image);
+                }
+            }
+        }
+    }
+
+    private getImage(src: string): HTMLImageElement {
+        if (this.imageCache.has(src)) return this.imageCache.get(src)!;
+        const img = new Image();
+        img.src = src;
+        this.imageCache.set(src, img);
+        return img;
     }
 
     // ========================
     // Rendering
     // ========================
 
-    /** Render the sky gradient background */
+    /** Render the sky background (image or gradient) */
     renderBackground(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, this.data.bgGradientTop);
-        gradient.addColorStop(1, this.data.bgGradientBottom);
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, width, height);
+        if (this.skyImage && this.skyImage.complete) {
+            ctx.drawImage(this.skyImage, 0, 0, width, height);
+        } else {
+            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, this.data.bgGradientTop);
+            gradient.addColorStop(1, this.data.bgGradientBottom);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+        }
     }
 
     /** Render parallax layers behind the main scene */
@@ -184,28 +230,36 @@ export class GameMap {
 
         for (const el of layer.elements) {
             ctx.globalAlpha = el.opacity ?? 1;
-            ctx.fillStyle = el.color;
-
-            switch (el.type) {
-                case 'circle':
-                    ctx.beginPath();
-                    ctx.arc(el.x, el.y, el.radius || 20, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-                case 'rect':
-                    ctx.fillRect(el.x, el.y, el.width || 50, el.height || 50);
-                    break;
-                case 'polygon':
-                    if (el.vertices && el.vertices.length >= 3) {
+            if (el.image) {
+                const img = this.getImage(el.image);
+                if (img.complete) {
+                    const w = el.width || img.width;
+                    const h = el.height || img.height;
+                    ctx.drawImage(img, el.x, el.y, w, h);
+                }
+            } else {
+                ctx.fillStyle = el.color;
+                switch (el.type) {
+                    case 'circle':
                         ctx.beginPath();
-                        ctx.moveTo(el.vertices[0].x + el.x, el.vertices[0].y + el.y);
-                        for (let i = 1; i < el.vertices.length; i++) {
-                            ctx.lineTo(el.vertices[i].x + el.x, el.vertices[i].y + el.y);
-                        }
-                        ctx.closePath();
+                        ctx.arc(el.x, el.y, el.radius || 20, 0, Math.PI * 2);
                         ctx.fill();
-                    }
-                    break;
+                        break;
+                    case 'rect':
+                        ctx.fillRect(el.x, el.y, el.width || 50, el.height || 50);
+                        break;
+                    case 'polygon':
+                        if (el.vertices && el.vertices.length >= 3) {
+                            ctx.beginPath();
+                            ctx.moveTo(el.vertices[0].x + el.x, el.vertices[0].y + el.y);
+                            for (let i = 1; i < el.vertices.length; i++) {
+                                ctx.lineTo(el.vertices[i].x + el.x, el.vertices[i].y + el.y);
+                            }
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        break;
+                }
             }
         }
         ctx.globalAlpha = 1;

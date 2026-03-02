@@ -14,6 +14,8 @@ export interface Particle {
     persistent: boolean;
     /** Set to true once a persistent particle has landed */
     stuck: boolean;
+    /** Image to render (optional) */
+    image?: HTMLImageElement;
 }
 
 /**
@@ -22,6 +24,7 @@ export interface Particle {
  */
 export class ParticleSystem {
     particles: Particle[] = [];
+    private smokeImg: HTMLImageElement | null = null;
 
     /** Offscreen canvas for persistent blood/decals */
     private persistCanvas: HTMLCanvasElement;
@@ -33,6 +36,9 @@ export class ParticleSystem {
         this.persistCanvas.width = width;
         this.persistCanvas.height = height;
         this.persistCtx = this.persistCanvas.getContext('2d')!;
+
+        this.smokeImg = new Image();
+        this.smokeImg.src = '/smoke1.png';
     }
 
     resizePersist(width: number, height: number): void {
@@ -54,11 +60,11 @@ export class ParticleSystem {
             this.particles.push({
                 pos: pos.clone(),
                 vel,
-                gravity: 0.15,
-                lifetime: 40 + Math.random() * 60,
-                maxLifetime: 100,
-                color: `hsl(${0 + Math.random() * 10}, ${70 + Math.random() * 30}%, ${20 + Math.random() * 25}%)`,
-                size: 1.5 + Math.random() * 3,
+                gravity: 0.25, // Stronger gravity
+                lifetime: 25 + Math.random() * 35, // Shorter life
+                maxLifetime: 60,
+                color: `hsl(${0 + Math.random() * 5}, ${80 + Math.random() * 20}%, ${15 + Math.random() * 20}%)`,
+                size: 1.2 + Math.random() * 2.5,
                 round: true,
                 persistent: true,
                 stuck: false,
@@ -77,10 +83,49 @@ export class ParticleSystem {
                 lifetime: 15 + Math.random() * 15,
                 maxLifetime: 30,
                 color: '#888',
-                size: 3 + Math.random() * 4,
+                size: 3 + Math.random() * 5,
                 round: true,
                 persistent: false,
                 stuck: false,
+                image: this.smokeImg?.complete ? this.smokeImg : undefined
+            });
+        }
+    }
+
+    /** Spawn large explosion (orange/red/smoke) */
+    spawnExplosion(pos: Vector2): void {
+        // Fire particles
+        for (let i = 0; i < 30; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 12;
+            this.particles.push({
+                pos: pos.clone(),
+                vel: Vector2.fromAngle(angle, speed),
+                gravity: 0.1,
+                lifetime: 20 + Math.random() * 40,
+                maxLifetime: 60,
+                color: i % 2 === 0 ? '#ff4400' : '#ffaa00',
+                size: 8 + Math.random() * 10,
+                round: true,
+                persistent: false,
+                stuck: false
+            });
+        }
+        // Extra smoke
+        for (let i = 0; i < 15; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 6;
+            this.particles.push({
+                pos: pos.clone(),
+                vel: Vector2.fromAngle(angle, speed),
+                gravity: -0.05,
+                lifetime: 40 + Math.random() * 60,
+                maxLifetime: 100,
+                color: '#444444',
+                size: 15 + Math.random() * 20,
+                round: true,
+                persistent: false,
+                stuck: false
             });
         }
     }
@@ -215,9 +260,9 @@ export class ParticleSystem {
                 // If persistent, draw onto the persist canvas and discard
                 if (p.persistent) {
                     this.persistCtx.fillStyle = p.color;
-                    this.persistCtx.globalAlpha = 0.6;
+                    this.persistCtx.globalAlpha = 0.35; // Lower opacity for old blood
                     this.persistCtx.beginPath();
-                    this.persistCtx.arc(p.pos.x, p.pos.y, p.size * 0.8, 0, Math.PI * 2);
+                    this.persistCtx.arc(p.pos.x, p.pos.y, p.size * 0.7, 0, Math.PI * 2);
                     this.persistCtx.fill();
                     this.persistCtx.globalAlpha = 1;
                     this.persistentDirty = true;
@@ -243,7 +288,10 @@ export class ParticleSystem {
             ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
 
-            if (p.round) {
+            if (p.image) {
+                const s = p.size * 2;
+                ctx.drawImage(p.image, p.pos.x - s / 2, p.pos.y - s / 2, s, s);
+            } else if (p.round) {
                 ctx.beginPath();
                 ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
