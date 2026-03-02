@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Soldat Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-XM9S6xo8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BlM_gAzl.css">
+</head>
+
+<body>
+  <div id="game-container">
+    <!-- O Canvas da Antigravity onde o jogo roda -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Overlay de UI -->
+    <div id="ui-layer">
+
+      <!-- MENU INICIAL -->
+      <div id="main-menu" class="menu-screen">
+        <h1 class="game-title">SOLDAT <span>WEB</span></h1>
+        <div class="menu-options">
+          <button id="btn-start">ENTRAR NA PARTIDA</button>
+          <button id="btn-servers">LISTA DE SERVIDORES</button>
+          <button id="btn-settings">CONFIGURAÇÕES</button>
+          <button id="btn-exit" class="exit-btn">SAIR</button>
+        </div>
+        <div class="version-tag">v0.1.0 Alpha</div>
+      </div>
+
+      <!-- MENU DE PAUSA (In-Game) -->
+      <div id="pause-menu" class="menu-screen hidden">
+        <div class="pause-content">
+          <h2>PAUSADO</h2>
+          <button id="btn-resume">CONTINUAR</button>
+          <button id="btn-settings-pause">CONFIGURAÇÕES</button>
+          <button id="btn-leave" class="leave-btn">SAIR DA PARTIDA</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+
+</html>
