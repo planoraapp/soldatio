@@ -22,13 +22,20 @@ export class Input {
                 this.keysJustPressed.add(e.code);
             }
             this.keys.add(e.code);
-            e.preventDefault();
+
+            // Don't prevent default for critical system keys like Escape, F12, etc.
+            if (e.code !== 'Escape' && !e.code.startsWith('F')) {
+                e.preventDefault();
+            }
         });
 
         window.addEventListener('keyup', (e) => {
             this.keys.delete(e.code);
             this.keysJustReleased.add(e.code);
-            e.preventDefault();
+
+            if (e.code !== 'Escape' && !e.code.startsWith('F')) {
+                e.preventDefault();
+            }
         });
 
         canvas.addEventListener('mousemove', (e) => {

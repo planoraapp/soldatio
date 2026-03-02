@@ -45,13 +45,19 @@ export class Gostek {
         pos: Vector2,
         aimAngle: number,
         isCrouching: boolean,
-        weaponName: string
+        weaponName: string,
+        reloadProgress: number = 0 // 0 to 1
     ): void {
         ctx.save();
         ctx.translate(pos.x, pos.y);
 
         const dir = this.facingDir;
         const crouchOffset = isCrouching ? 4 : 0;
+
+        // ========== RELOAD BAR ==========
+        if (reloadProgress > 0 && reloadProgress < 1) {
+            this.renderReloadBar(ctx, crouchOffset, reloadProgress);
+        }
 
         // ========== LEGS ==========
         this.renderLegs(ctx, dir, crouchOffset);
@@ -250,5 +256,25 @@ export class Gostek {
         ctx.fillRect(length - 4, -height / 2 - 0.5, 4, height + 1);
 
         ctx.restore();
+    }
+
+    private renderReloadBar(ctx: CanvasRenderingContext2D, crouchOffset: number, progress: number): void {
+        const barWidth = 20;
+        const barHeight = 3;
+        const x = -barWidth / 2;
+        const y = -35 + crouchOffset;
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(x, y, barWidth, barHeight);
+
+        // Progress
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, barWidth * progress, barHeight);
+
+        // Border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, barWidth, barHeight);
     }
 }

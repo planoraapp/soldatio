@@ -1,19 +1,157 @@
+:root {
+  --soldat-green: #4a5d23;
+  --soldat-light-green: #6b8e23;
+  --soldat-dark: #1a1a1a;
+  --soldat-red: #8b0000;
+  --font-main: 'Courier New', Courier, monospace;
+  /* Estilo militar */
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  user-select: none;
 }
 
-html, body {
+body,
+html {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background-color: #000;
+  font-family: var(--font-main);
 }
 
-#game-canvas {
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  overflow: hidden;
+}
+
+canvas {
   display: block;
   width: 100%;
   height: 100%;
-  cursor: none;
+  cursor: crosshair;
+}
+
+#ui-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Deixa cliques passarem para o canvas se nada estiver aberto */
+  z-index: 100;
+}
+
+.menu-screen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  /* Fundo escurecido */
+  pointer-events: all;
+  backdrop-filter: blur(4px);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Estilo do Título */
+.game-title {
+  color: white;
+  font-size: 80px;
+  font-family: var(--font-main);
+  text-shadow: 4px 4px 0px var(--soldat-green);
+  margin-bottom: 50px;
+  letter-spacing: 5px;
+}
+
+.game-title span {
+  color: var(--soldat-light-green);
+}
+
+/* Botões */
+.menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 300px;
+}
+
+button {
+  background: var(--soldat-green);
+  color: white;
+  border: 3px solid #2d3a15;
+  padding: 15px 50px;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: var(--font-main);
+  transition: all 0.2s;
+  text-transform: uppercase;
+  outline: none;
+}
+
+button:hover {
+  background: var(--soldat-light-green);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px var(--soldat-light-green);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+.exit-btn,
+.leave-btn {
+  background: #444;
+  border-color: #333;
+}
+
+.exit-btn:hover {
+  background: #555;
+}
+
+.leave-btn:hover {
+  background: var(--soldat-red);
+  box-shadow: 0 0 15px var(--soldat-red);
+  border-color: #600;
+}
+
+/* Menu de Pausa */
+.pause-content {
+  background: rgba(30, 30, 30, 0.95);
+  padding: 60px;
+  border: 5px solid var(--soldat-green);
+  text-align: center;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pause-content h2 {
+  color: white;
+  margin-bottom: 10px;
+  font-family: var(--font-main);
+  font-size: 40px;
+}
+
+.version-tag {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
 }

@@ -218,31 +218,40 @@ export class Player {
 
         if (this.fireTimer > 0) this.fireTimer--;
 
+        let justFinishedReload = false;
+
         // Reloading
         if (this.reloading) {
             this.reloadTimer--;
             if (this.reloadTimer <= 0) {
                 this.ammo[this.currentWeaponIndex] = this.weapon.magazineSize;
                 this.reloading = false;
+                justFinishedReload = true;
             }
-            return;
         }
 
-        // Manual reload
-        if (input.isKeyJustPressed('KeyR')) {
-            this.startReload();
-            return;
-        }
+        if (!this.reloading) {
+            // Manual reload
+            if (input.isKeyJustPressed('KeyR')) {
+                this.startReload();
+                return;
+            }
 
-        // Fire
-        const canFire = this.weapon.automatic ? input.mouseLeft : input.mouseLeftJustPressed;
-        if (canFire && this.fireTimer <= 0 && this.ammo[this.currentWeaponIndex] > 0) {
-            this.fire(bullets, particles);
-        }
+            // Fire
+            // Continuous firing: allow if button is held, fireTimer is 0, and we have ammo.
+            // Works for ALL weapons now: automatic stays automatic, semi-automatic 
+            // also refires if button is kept held (becoming essentially automatic but at their own rate).
+            const isFiring = input.mouseLeft;
+            const canFire = isFiring && this.fireTimer <= 0 && this.ammo[this.currentWeaponIndex] > 0;
 
-        // Auto-reload when empty
-        if (this.ammo[this.currentWeaponIndex] <= 0 && !this.reloading) {
-            this.startReload();
+            if (canFire) {
+                this.fire(bullets, particles);
+            }
+
+            // Auto-reload when empty
+            if (this.ammo[this.currentWeaponIndex] <= 0) {
+                this.startReload();
+            }
         }
     }
 
@@ -312,6 +321,20 @@ export class Player {
 
     render(ctx: CanvasRenderingContext2D): void {
         if (this.isDead) return;
-        this.gostek.render(ctx, this.pos, this.aimAngle, this.isCrouching, this.weapon.name);
+
+        let reloadProgress = 0;
+        if (this.reloading) {
+            const totalReloadFrames = Math.round(this.weapon.reloadTime / 16.67);
+            reloadProgress = 1 - (this.reloadTimer / totalReloadFrames);
+        }
+
+        this.gostek.render(
+            ctx,
+            this.pos,
+            this.aimAngle,
+            this.isCrouching,
+            this.weapon.name,
+            reloadProgress
+        );
     }
 }

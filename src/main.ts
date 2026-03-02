@@ -1,20 +1,39 @@
 import { Game } from './engine/Game';
 
-const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
 
 if (!canvas) {
-    throw new Error('Canvas element #game-canvas not found!');
+    throw new Error('Canvas element #gameCanvas not found!');
 }
 
 const game = new Game(canvas);
+// Start the engine
 game.start();
 
-console.log('%c🎮 Soldat Web v0.1 — Ready!', 'color: #4af; font-size: 14px; font-weight: bold;');
-console.log('%cControls:', 'color: #aaa; font-size: 12px;');
-console.log('  A/D — Move left/right');
-console.log('  W — Jump');
-console.log('  Right-click (hold) — Jetpack');
-console.log('  Left-click — Shoot');
-console.log('  1-5 — Switch weapons');
-console.log('  R — Reload');
+// Bind UI Buttons
+game.gui.bindButton('btn-start', () => {
+    game.state = 'PLAYING';
+    game.gui.setScreen('NONE');
+    console.log("🎮 Game Started!");
+});
+
+game.gui.bindButton('btn-resume', () => {
+    game.togglePause();
+});
+
+game.gui.bindButton('btn-leave', () => {
+    if (confirm("Deseja realmente sair da partida?")) {
+        game.state = 'MAIN_MENU';
+        game.gui.setScreen('MAIN_MENU');
+        // Reset player? Optional.
+    }
+});
+
+game.gui.bindButton('btn-exit', () => {
+    window.close();
+    // Some browsers block window.close() unless opened by script, 
+    // but this is the requested behavior.
+});
+
+console.log('🎮 Soldat Web v0.1 — UI Ready!');
 console.log('  S — Crouch');

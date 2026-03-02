@@ -8,6 +8,7 @@ import { ParticleSystem } from '../game/Particles';
 import { HUD } from '../game/HUD';
 import { WeatherSystem } from '../game/Weather';
 import { enhancedTestMap } from '../game/maps/enhancedTestMap';
+import { GUIManager, GameUIState } from './GUIManager';
 
 /**
  * Main game class: orchestrates the game loop, all systems, and rendering.
@@ -23,6 +24,9 @@ export class Game {
     particles: ParticleSystem;
     weather: WeatherSystem;
     hud: HUD;
+    gui: GUIManager;
+
+    state: GameUIState = 'MAIN_MENU';
 
     private lastTime: number = 0;
     private accumulator: number = 0;
@@ -48,6 +52,10 @@ export class Game {
         );
         this.weather = new WeatherSystem(enhancedTestMap.weather || { type: 'none', intensity: 0, windX: 0 });
         this.hud = new HUD();
+        this.gui = new GUIManager();
+
+        // Initial menu screen
+        this.gui.setScreen('MAIN_MENU');
 
         // Set canvas size and initial setup
         this.resize();
@@ -84,10 +92,29 @@ export class Game {
         this.render();
         this.input.endFrame();
 
+        // Global key handling: ESC for pause
+        if (this.input.isKeyJustPressed('Escape')) {
+            this.togglePause();
+        }
+
         requestAnimationFrame((t) => this.loop(t));
     }
 
+    togglePause(): void {
+        if (this.state === 'MAIN_MENU') return;
+
+        if (this.state === 'PLAYING') {
+            this.state = 'PAUSED';
+            this.gui.setScreen('PAUSED');
+        } else if (this.state === 'PAUSED') {
+            this.state = 'PLAYING';
+            this.gui.setScreen('NONE');
+        }
+    }
+
     private update(): void {
+        if (this.state !== 'PLAYING') return;
+
         // Update mouse world coordinates
         this.input.updateMouseWorld(this.camera.x, this.camera.y, this.camera.scale);
 
