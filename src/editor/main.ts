@@ -71,11 +71,31 @@ document.querySelectorAll('[data-view]').forEach(btn => {
 // ─────────────────────────────────────────────
 document.querySelectorAll('[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
+        const tool = (btn as HTMLElement).dataset.tool!;
         document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        mapEditor.setTool((btn as HTMLElement).dataset.tool as any);
+        mapEditor.setTool(tool as any);
+        updateToolOptions(tool);
     });
 });
+
+function updateToolOptions(tool: string) {
+    // Hide all sub panels
+    document.querySelectorAll('.tool-sub-panel').forEach(el => el.classList.add('hidden'));
+    const titleEl = document.getElementById('options-title');
+
+    // Show the right one
+    const id = `opts-${tool.toLowerCase()}`;
+    const panel = document.getElementById(id);
+    if (panel) {
+        panel.classList.remove('hidden');
+        if (titleEl) titleEl.textContent = `⚙ OPÇÕES: ${tool}`;
+    } else {
+        // Fallback for tools without specific opts
+        if (titleEl) titleEl.textContent = `⚙ OPÇÕES`;
+        // Default to brush/draw if appropriate? No, keep it clean.
+    }
+}
 
 // Grid controls
 const gridSnapCb = document.getElementById('grid-snap') as HTMLInputElement;

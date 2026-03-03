@@ -1429,13 +1429,42 @@ canvas {
   padding: 0;
 }
 
-.btn-remove {
-  background: none;
-  border: none;
-  color: var(--text-3);
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.2s;
+.btn-remove:hover {
+  color: var(--accent);
+}
+
+/* Sidebar Contextual Panels */
+.hidden {
+  display: none !important;
+}
+
+.tool-sub-panel {
+  animation: fadeInPanel 0.2s ease-out;
+}
+
+@keyframes fadeInPanel {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bounds-grid-mini input {
+  padding: 4px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.map-config-area {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius);
+  padding: 8px !important;
+  margin-top: 4px;
 }
 
 .btn-remove:hover {

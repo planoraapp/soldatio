@@ -39,8 +39,7 @@
     <div id="view-map" class="editor-view">
       <!-- LEFT SIDEBAR: Toolbox -->
       <aside class="sidebar left" id="toolbox">
-        <div class="sidebar-header">FERRAMENTAS</div>
-
+        <div class="sidebar-header">🛠 FERRAMENTAS</div>
         <div class="tool-group">
           <button class="tool-btn active" data-tool="SELECT" title="Selecionar [S]">
             <span class="tool-icon">↖</span><span>Selecionar</span>
@@ -49,7 +48,7 @@
             <span class="tool-icon">✏</span><span>Desenhar</span>
           </button>
           <button class="tool-btn" data-tool="BRUSH" title="Pincel de terreno [B]">
-            <span class="tool-icon">🖌</span><span>Brush</span>
+            <span class="tool-icon">🖌</span><span>Pincel</span>
           </button>
           <button class="tool-btn" data-tool="PAN" title="Navegar [Space]">
             <span class="tool-icon">✋</span><span>Navegar</span>
@@ -58,152 +57,152 @@
             <span class="tool-icon">🗑</span><span>Apagar</span>
           </button>
           <button class="tool-btn" data-tool="STAMP" title="Carimbar sprite [T]">
-            <span class="tool-icon">🖼</span><span>Stamp</span>
+            <span class="tool-icon">🖼</span><span>Carimbo</span>
           </button>
         </div>
 
         <div class="sidebar-divider"></div>
-        <div class="sidebar-header">COLOCAR</div>
 
-        <div class="tool-group">
+        <div class="sidebar-header">📦 COLOCAR</div>
+        <div class="tool-group tool-group-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
           <button class="tool-btn" data-tool="SPAWN" title="Ponto de Spawn">
             <span class="tool-icon">📍</span><span>Spawn</span>
           </button>
-          <button class="tool-btn" data-tool="PICKUP" title="Pickup">
-            <span class="tool-icon">💊</span><span>Pickup</span>
+          <button class="tool-btn" data-tool="PICKUP" title="Pickup / Item">
+            <span class="tool-icon">💊</span><span>Item</span>
           </button>
-          <button class="tool-btn" data-tool="SCENERY" title="Cenário">
-            <span class="tool-icon">🪵</span><span>Cenário</span>
+          <button class="tool-btn" data-tool="SCENERY" title="Objeto de Cenário" style="grid-column: span 2;">
+            <span class="tool-icon">🪵</span><span>Objeto de Cenário</span>
           </button>
         </div>
 
         <div class="sidebar-divider"></div>
-        <div class="sidebar-header">TERRENO — BRUSH</div>
 
-        <div class="option-row">
-          <label class="field-label">Material</label>
-          <div class="terrain-palette" id="terrain-palette">
-            <button class="terrain-btn active" data-material="dirt" style="--mc:#9b7a4a">Terra</button>
-            <button class="terrain-btn" data-material="grass" style="--mc:#4a8a4a">Grama</button>
-            <button class="terrain-btn" data-material="rock" style="--mc:#6b6b6b">Rocha</button>
-            <button class="terrain-btn" data-material="concrete" style="--mc:#8a8a8a">Conc.</button>
-            <button class="terrain-btn" data-material="wood" style="--mc:#8B6914">Madeira</button>
-            <button class="terrain-btn" data-material="metal" style="--mc:#7a9baa">Metal</button>
+        <!-- DYNAMIC OPTIONS PANEL -->
+        <div id="tool-options-panel">
+          <div class="sidebar-header" id="options-title">⚙ OPÇÕES</div>
+
+          <!-- BRUSH OPTIONS -->
+          <div id="opts-brush" class="tool-sub-panel">
+            <div class="option-row">
+              <label class="field-label">Material do Terreno</label>
+              <div class="terrain-palette" id="terrain-palette">
+                <button class="terrain-btn active" data-material="dirt" style="--mc:#9b7a4a">Terra</button>
+                <button class="terrain-btn" data-material="grass" style="--mc:#4a8a4a">Grama</button>
+                <button class="terrain-btn" data-material="rock" style="--mc:#6b6b6b">Rocha</button>
+                <button class="terrain-btn" data-material="concrete" style="--mc:#8a8a8a">Conc.</button>
+                <button class="terrain-btn" data-material="wood" style="--mc:#8B6914">Mad.</button>
+                <button class="terrain-btn" data-material="metal" style="--mc:#7a9baa">Met.</button>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <label class="field-label">Comportamento</label>
+              <select id="brush-poly-type" class="select-sm">
+                <option value="0">SOLID (Sólido)</option>
+                <option value="1">BACKGROUND (Fundo)</option>
+                <option value="3">DEADLY (Mortal)</option>
+                <option value="2">BOUNCY (Elástico)</option>
+                <option value="6">ONE_WAY (Uma via)</option>
+              </select>
+            </div>
+
+            <div class="option-row">
+              <label class="field-label">Tamanho: <span id="brush-size-val">40</span>px</label>
+              <input type="range" id="brush-size" min="10" max="300" value="40" class="slider">
+              <div class="brush-sizes" style="margin-top:8px">
+                <button class="size-btn" data-size="20">P</button>
+                <button class="size-btn active" data-size="40">M</button>
+                <button class="size-btn" data-size="80">G</button>
+                <button class="size-btn" data-size="160">XG</button>
+              </div>
+            </div>
+
+            <div class="sidebar-header" style="font-size: 10px; margin-top: 16px; opacity: 0.6;">PRESETS DE TERRENO
+            </div>
+            <div class="preset-cat-tabs" id="preset-cat-tabs"></div>
+            <div class="preset-gallery" id="preset-gallery"></div>
+          </div>
+
+          <!-- SPAWN OPTIONS -->
+          <div id="opts-spawn" class="tool-sub-panel hidden">
+            <div class="option-row">
+              <label class="field-label">Time do Spawn</label>
+              <select id="spawn-team" class="select-sm">
+                <option value="0">Neutro (Livre)</option>
+                <option value="1">🔴 Time Vermelho</option>
+                <option value="2">🔵 Time Azul</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ITEM OPTIONS -->
+          <div id="opts-pickup" class="tool-sub-panel hidden">
+            <div class="option-row">
+              <label class="field-label">Tipo de Recurso</label>
+              <select id="pickup-type" class="select-sm">
+                <option value="health">💊 Kit Médico (Vida)</option>
+                <option value="grenades">💣 Granadas (Munição)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SCENERY OPTIONS -->
+          <div id="opts-scenery" class="tool-sub-panel hidden">
+            <div class="option-row">
+              <label class="field-label">Objeto Visual</label>
+              <select id="scenery-type" class="select-sm">
+                <option value="crate">Caixa (Crate)</option>
+                <option value="barrel">Barril (Barrel)</option>
+                <option value="sandbag">Saco de Areia</option>
+                <option value="flag">Bandeira</option>
+                <option value="bush">Arbusto</option>
+                <option value="sign">Placa</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- DRAW OPTIONS -->
+          <div id="opts-draw" class="tool-sub-panel hidden">
+            <div class="option-row">
+              <label class="field-label">Novo Polígono</label>
+              <select id="new-poly-type" class="select-sm">
+                <option value="0">SOLID</option>
+                <option value="1">BACKGROUND</option>
+                <option value="6">ONE_WAY</option>
+              </select>
+              <select id="new-poly-material" class="select-sm" style="margin-top: 8px">
+                <option value="dirt">Material: Terra</option>
+                <option value="grass">Material: Grama</option>
+                <option value="metal">Material: Metal</option>
+              </select>
+              <input type="color" id="new-poly-color" value="#4a7c4f" class="color-input" style="margin-top: 8px">
+            </div>
           </div>
         </div>
-        <div class="option-row">
-          <label class="field-label">Tipo polígono (brush)</label>
-          <select id="brush-poly-type" class="select-sm">
-            <option value="0">SOLID</option>
-            <option value="1">BACKGROUND</option>
-            <option value="3">DEADLY</option>
-            <option value="2">BOUNCY</option>
-            <option value="6">ONE_WAY</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Tamanho: <span id="brush-size-val">40</span>px</label>
-          <input type="range" id="brush-size" min="10" max="300" value="40" class="slider">
-        </div>
-        <div class="brush-sizes">
-          <button class="size-btn" data-size="20">S</button>
-          <button class="size-btn active" data-size="40">M</button>
-          <button class="size-btn" data-size="80">L</button>
-          <button class="size-btn" data-size="160">XL</button>
-        </div>
-
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-header">PRESETS DE TERRENO</div>
-        <div class="preset-cat-tabs" id="preset-cat-tabs"></div>
-        <div class="preset-gallery" id="preset-gallery"><!-- filled by JS --></div>
 
         <div class="sidebar-divider"></div>
 
-        <div class="option-row">
-          <label class="toggle-label">
-            <input type="checkbox" id="grid-snap" checked>
-            <span class="toggle-track"></span>
-            <span>Grid snap</span>
-          </label>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Tamanho grid</label>
-          <input type="number" id="grid-size" class="input-sm" value="20" min="4" max="200">
-        </div>
-
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-header">NOVO POLÍGONO</div>
-        <div class="option-row">
-          <label class="field-label">Tipo</label>
-          <select id="new-poly-type" class="select-sm">
-            <option value="0">SOLID</option>
-            <option value="1">BACKGROUND</option>
-            <option value="2">BOUNCY</option>
-            <option value="3">DEADLY</option>
-            <option value="4">ONLY_BULLETS</option>
-            <option value="5">ONLY_PLAYERS</option>
-            <option value="6">ONE_WAY</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Material</label>
-          <select id="new-poly-material" class="select-sm">
-            <option value="dirt">Dirt</option>
-            <option value="rock">Rock</option>
-            <option value="metal">Metal</option>
-            <option value="concrete">Concrete</option>
-            <option value="wood">Wood</option>
-            <option value="grass">Grass</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Cor</label>
-          <input type="color" id="new-poly-color" value="#4a7c4f" class="color-input">
-        </div>
-
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-header">SPAWN / PICKUP</div>
-        <div class="option-row">
-          <label class="field-label">Equipe</label>
-          <select id="spawn-team" class="select-sm">
-            <option value="0">Neutro</option>
-            <option value="1">Time 1</option>
-            <option value="2">Time 2</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Pickup tipo</label>
-          <select id="pickup-type" class="select-sm">
-            <option value="health">Saúde</option>
-            <option value="grenades">Granadas</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label class="field-label">Cenário item</label>
-          <select id="scenery-type" class="select-sm">
-            <option value="crate">Crate</option>
-            <option value="barrel">Barrel</option>
-            <option value="sandbag">Sandbag</option>
-            <option value="flag">Flag</option>
-            <option value="pillar">Pillar</option>
-            <option value="bush">Bush</option>
-            <option value="sign">Sign</option>
-          </select>
-        </div>
-
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-header">MAPA</div>
-        <div class="option-row">
-          <label class="field-label">Nome</label>
-          <input type="text" id="map-name" class="input-sm" value="meuMapa">
-        </div>
-        <div class="option-row bounds-grid">
-          <span class="field-label">Bounds</span>
-          <div class="bounds-inputs">
-            <input type="number" id="bounds-left" class="input-sm" value="-100" placeholder="Left">
-            <input type="number" id="bounds-top" class="input-sm" value="-100" placeholder="Top">
-            <input type="number" id="bounds-right" class="input-sm" value="3000" placeholder="Right">
-            <input type="number" id="bounds-bottom" class="input-sm" value="2000" placeholder="Bottom">
+        <div class="sidebar-header">🗺 MAPA & GRID</div>
+        <div class="map-config-area" style="padding: 0 4px;">
+          <div class="option-row">
+            <input type="text" id="map-name" class="input-sm" value="meuMapa" placeholder="Nome do Mapa"
+              style="width:100%">
+          </div>
+          <div class="option-row" style="margin-top: 8px">
+            <label class="toggle-label">
+              <input type="checkbox" id="grid-snap" checked>
+              <span class="toggle-track"></span>
+              <span>Grid Snap</span>
+            </label>
+            <input type="number" id="grid-size" class="input-sm" value="20" style="width: 50px; margin-left: auto;">
+          </div>
+          <div class="bounds-grid-mini"
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px;">
+            <input type="number" id="bounds-left" class="input-sm" value="-100" title="Left (X inicial)">
+            <input type="number" id="bounds-top" class="input-sm" value="-100" title="Top (Y inicial)">
+            <input type="number" id="bounds-right" class="input-sm" value="3000" title="Right (X final)">
+            <input type="number" id="bounds-bottom" class="input-sm" value="2000" title="Bottom (Y final)">
           </div>
         </div>
 
