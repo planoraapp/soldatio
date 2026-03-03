@@ -11,8 +11,9 @@ import { WeatherSystem } from '../game/Weather';
 import { GrenadeManager } from '../game/Grenade';
 import { PickupManager } from '../game/PickupManager';
 import { TouchControls } from './TouchControls';
-import { enhancedTestMap } from '../game/maps/enhancedTestMap';
+import { trincheiras } from '../game/maps/trincheiras';
 import { GUIManager, GameUIState } from './GUIManager';
+import { AudioManager } from './AudioManager';
 
 /**
  * Main game class: orchestrates the game loop, all systems, and rendering.
@@ -33,6 +34,7 @@ export class Game {
     hud: HUD;
     touchControls: TouchControls;
     gui: GUIManager;
+    audio: AudioManager;
 
     state: GameUIState = 'MAIN_MENU';
 
@@ -48,7 +50,7 @@ export class Game {
         // Initialize systems
         this.input = new Input(canvas);
         this.camera = new Camera();
-        this.map = new GameMap(enhancedTestMap);
+        this.map = new GameMap(trincheiras);
 
         const spawnPos = this.map.getRandomSpawn();
         this.player = new Player(spawnPos);
@@ -65,13 +67,23 @@ export class Game {
         this.grenades = new GrenadeManager();
         this.pickups = new PickupManager();
         this.particles = new ParticleSystem(
-            enhancedTestMap.bounds.right - enhancedTestMap.bounds.left,
-            enhancedTestMap.bounds.bottom - enhancedTestMap.bounds.top
+            trincheiras.bounds.right - trincheiras.bounds.left,
+            trincheiras.bounds.bottom - trincheiras.bounds.top
         );
-        this.weather = new WeatherSystem(enhancedTestMap.weather || { type: 'none', intensity: 0, windX: 0 });
+        this.weather = new WeatherSystem(trincheiras.weather || { type: 'none', intensity: 0, windX: 0 });
         this.hud = new HUD();
         this.touchControls = new TouchControls(this.canvas);
         this.gui = new GUIManager();
+        this.audio = new AudioManager();
+
+        // Load sprite sheets, then rebuild the map render cache with real textures
+        this.map.loadSpritesAndRebuild().catch(() => {/* sprites optional */ });
+
+        // Resume AudioContext on first user gesture
+        const resumeAudio = () => { this.audio.resume(); };
+        window.addEventListener('keydown', resumeAudio, { once: true });
+        window.addEventListener('mousedown', resumeAudio, { once: true });
+        window.addEventListener('touchstart', resumeAudio, { once: true });
 
         // Initial menu screen
         this.gui.setScreen('MAIN_MENU');
@@ -150,12 +162,30 @@ export class Game {
 
         // 2. Update bots
         for (const bot of this.bots) {
-            bot.updateBot(this.player, collisionPolygons, this.bullets, this.grenades, this.particles, allPlayers);
+            bot.updateBot(
+                this.player,
+                collisionPolygons,
+                this.bullets,
+                this.grenades,
+                this.particles,
+                allPlayers,
+                this.map.data.pickups || []
+            );
             bot.enforceBounds(this.map.data.bounds);
         }
 
         // 3. Update Grenades
-        this.grenades.update(collisionPolygons, this.particles, allPlayers);
+        const grenadeResult = this.grenades.update(collisionPolygons, this.particles, allPlayers);
+
+        // Shake camera + play sound for each explosion
+        for (const exp of (grenadeResult as any)?.explosions ?? []) {
+            this.camera.applyShake(14);
+            this.audio.playExplosion(this.getSoundPan(exp.x ?? this.player.pos.x));
+        }
+        // Fallback: if grenadeResult is undefined (old API returns void)
+        if (!grenadeResult) {
+            // explosion events unavailable, skip
+        }
 
         // 3a. Update Pickups
         if (this.map.data.pickups) {
@@ -180,7 +210,16 @@ export class Game {
 
         // Handle bullet damage to players/bots
         for (const hit of hitPlayers) {
+            const wasDead = hit.player.isDead;
             hit.player.takeDamage(hit.damage, this.particles);
+            // Camera shake when player is hit
+            if (hit.player === this.player) {
+                this.camera.applyShake(hit.damage * 0.25);
+            }
+            // Death sound
+            if (!wasDead && hit.player.isDead) {
+                this.audio.playDeath(this.getSoundPan(hit.player.pos.x));
+            }
         }
 
         // Update systems
@@ -204,6 +243,16 @@ export class Game {
                 bot.die(this.particles);
             }
         }
+    }
+
+    /**
+     * Convert a world X position to stereo pan value (-1 = far left, 1 = far right).
+     * Objects near the centre of screen ≈ 0; beyond the viewport edges ≈ ±1.
+     */
+    private getSoundPan(worldX: number): number {
+        const screenX = (worldX - this.camera.x) * this.camera.scale;
+        const pan = (screenX / this.canvas.width) * 2 - 1;
+        return Math.max(-1, Math.min(1, pan));
     }
 
     private getMaterialAt(pos: Vector2): Material | null {

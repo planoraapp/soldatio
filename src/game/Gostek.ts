@@ -48,15 +48,15 @@ export class Gostek {
         weaponName: string,
         reloadProgress: number = 0, // 0 to 1
         rotation: number = 0,
-        isRolling: boolean = false
+        isRolling: boolean = false,
+        velocityX: number = 0 // Lean animation
     ): void {
         ctx.save();
         ctx.translate(pos.x, pos.y);
 
-        // Apply rotation
-        if (rotation !== 0) {
-            ctx.rotate(rotation);
-        }
+        // Lean toward running direction; skip lean during roll/backflip (rotation dominates)
+        const leanAngle = isRolling ? 0 : velocityX * 0.035;
+        ctx.rotate(rotation + leanAngle);
 
         const dir = this.facingDir;
         // Ball up more if rolling

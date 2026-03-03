@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Soldatio Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/src/editor/editor.css" />
+</head>
+
+<body>
+  <div id="editor-root">
+
+    <!-- TOP BAR -->
+    <header id="topbar">
+      <div class="topbar-left">
+        <div class="logo">⚔ SOLDATIO <span>EDITOR</span></div>
+        <nav class="main-tabs">
+          <button class="main-tab active" data-view="map">🗺 MAP EDITOR</button>
+          <button class="main-tab" data-view="asset">🎨 ASSET EDITOR</button>
+        </nav>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-topbar" id="btn-import">📂 Importar</button>
+        <button class="btn-topbar accent" id="btn-export">📤 Exportar</button>
+      </div>
+    </header>
+
+    <!-- MAP EDITOR VIEW -->
+    <div id="view-map" class="editor-view">
+      <!-- LEFT SIDEBAR: Toolbox -->
+      <aside class="sidebar left" id="toolbox">
+        <div class="sidebar-header">FERRAMENTAS</div>
+
+        <div class="tool-group">
+          <button class="tool-btn active" data-tool="SELECT" title="Selecionar [S]">
+            <span class="tool-icon">↖</span><span>Selecionar</span>
+          </button>
+          <button class="tool-btn" data-tool="DRAW" title="Desenhar polígono [D]">
+            <span class="tool-icon">✏</span><span>Desenhar</span>
+          </button>
+          <button class="tool-btn" data-tool="BRUSH" title="Pincel de terreno [B]">
+            <span class="tool-icon">🖌</span><span>Brush</span>
+          </button>
+          <button class="tool-btn" data-tool="PAN" title="Navegar [Space]">
+            <span class="tool-icon">✋</span><span>Navegar</span>
+          </button>
+          <button class="tool-btn" data-tool="ERASE" title="Apagar [E]">
+            <span class="tool-icon">🗑</span><span>Apagar</span>
+          </button>
+          <button class="tool-btn" data-tool="STAMP" title="Carimbar sprite [T]">
+            <span class="tool-icon">🖼</span><span>Stamp</span>
+          </button>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">COLOCAR</div>
+
+        <div class="tool-group">
+          <button class="tool-btn" data-tool="SPAWN" title="Ponto de Spawn">
+            <span class="tool-icon">📍</span><span>Spawn</span>
+          </button>
+          <button class="tool-btn" data-tool="PICKUP" title="Pickup">
+            <span class="tool-icon">💊</span><span>Pickup</span>
+          </button>
+          <button class="tool-btn" data-tool="SCENERY" title="Cenário">
+            <span class="tool-icon">🪵</span><span>Cenário</span>
+          </button>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">TERRENO — BRUSH</div>
+
+        <div class="option-row">
+          <label class="field-label">Material</label>
+          <div class="terrain-palette" id="terrain-palette">
+            <button class="terrain-btn active" data-material="dirt" style="--mc:#9b7a4a">Terra</button>
+            <button class="terrain-btn" data-material="grass" style="--mc:#4a8a4a">Grama</button>
+            <button class="terrain-btn" data-material="rock" style="--mc:#6b6b6b">Rocha</button>
+            <button class="terrain-btn" data-material="concrete" style="--mc:#8a8a8a">Conc.</button>
+            <button class="terrain-btn" data-material="wood" style="--mc:#8B6914">Madeira</button>
+            <button class="terrain-btn" data-material="metal" style="--mc:#7a9baa">Metal</button>
+          </div>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Tipo polígono (brush)</label>
+          <select id="brush-poly-type" class="select-sm">
+            <option value="0">SOLID</option>
+            <option value="1">BACKGROUND</option>
+            <option value="3">DEADLY</option>
+            <option value="2">BOUNCY</option>
+            <option value="6">ONE_WAY</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Tamanho: <span id="brush-size-val">40</span>px</label>
+          <input type="range" id="brush-size" min="10" max="300" value="40" class="slider">
+        </div>
+        <div class="brush-sizes">
+          <button class="size-btn" data-size="20">S</button>
+          <button class="size-btn active" data-size="40">M</button>
+          <button class="size-btn" data-size="80">L</button>
+          <button class="size-btn" data-size="160">XL</button>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">PRESETS DE TERRENO</div>
+        <div class="preset-cat-tabs" id="preset-cat-tabs"></div>
+        <div class="preset-gallery" id="preset-gallery"><!-- filled by JS --></div>
+
+        <div class="sidebar-divider"></div>
+
+        <div class="option-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="grid-snap" checked>
+            <span class="toggle-track"></span>
+            <span>Grid snap</span>
+          </label>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Tamanho grid</label>
+          <input type="number" id="grid-size" class="input-sm" value="20" min="4" max="200">
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">NOVO POLÍGONO</div>
+        <div class="option-row">
+          <label class="field-label">Tipo</label>
+          <select id="new-poly-type" class="select-sm">
+            <option value="0">SOLID</option>
+            <option value="1">BACKGROUND</option>
+            <option value="2">BOUNCY</option>
+            <option value="3">DEADLY</option>
+            <option value="4">ONLY_BULLETS</option>
+            <option value="5">ONLY_PLAYERS</option>
+            <option value="6">ONE_WAY</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Material</label>
+          <select id="new-poly-material" class="select-sm">
+            <option value="dirt">Dirt</option>
+            <option value="rock">Rock</option>
+            <option value="metal">Metal</option>
+            <option value="concrete">Concrete</option>
+            <option value="wood">Wood</option>
+            <option value="grass">Grass</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Cor</label>
+          <input type="color" id="new-poly-color" value="#4a7c4f" class="color-input">
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">SPAWN / PICKUP</div>
+        <div class="option-row">
+          <label class="field-label">Equipe</label>
+          <select id="spawn-team" class="select-sm">
+            <option value="0">Neutro</option>
+            <option value="1">Time 1</option>
+            <option value="2">Time 2</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Pickup tipo</label>
+          <select id="pickup-type" class="select-sm">
+            <option value="health">Saúde</option>
+            <option value="grenades">Granadas</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label class="field-label">Cenário item</label>
+          <select id="scenery-type" class="select-sm">
+            <option value="crate">Crate</option>
+            <option value="barrel">Barrel</option>
+            <option value="sandbag">Sandbag</option>
+            <option value="flag">Flag</option>
+            <option value="pillar">Pillar</option>
+            <option value="bush">Bush</option>
+            <option value="sign">Sign</option>
+          </select>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-header">MAPA</div>
+        <div class="option-row">
+          <label class="field-label">Nome</label>
+          <input type="text" id="map-name" class="input-sm" value="meuMapa">
+        </div>
+        <div class="option-row bounds-grid">
+          <span class="field-label">Bounds</span>
+          <div class="bounds-inputs">
+            <input type="number" id="bounds-left" class="input-sm" value="-100" placeholder="Left">
+            <input type="number" id="bounds-top" class="input-sm" value="-100" placeholder="Top">
+            <input type="number" id="bounds-right" class="input-sm" value="3000" placeholder="Right">
+            <input type="number" id="bounds-bottom" class="input-sm" value="2000" placeholder="Bottom">
+          </div>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        <div class="btn-group-vert">
+          <button class="btn-action" id="btn-clear-map">🗑 Limpar Mapa</button>
+          <button class="btn-action" id="btn-load-sample">📦 Carregar Exemplo</button>
+        </div>
+      </aside>
+
+      <!-- CENTER: Canvas -->
+      <div class="canvas-area" id="map-canvas-area">
+        <div class="canvas-hint" id="draw-hint" style="display:none">
+          Clique para adicionar vértice · <b>Enter</b> ou clique no 1º ponto para fechar
+        </div>
+        <canvas id="map-canvas"></canvas>
+      </div>
+
+      <!-- FLOATING SPRITE PICKER PANEL -->
+      <div id="sprite-picker-panel" class="sprite-picker-panel hidden">
+        <div class="sprite-picker-header">
+          <span>📌 SPRITE PICKER</span>
+          <div class="sprite-sheet-tabs" id="sprite-sheet-tabs">
+            <button class="ssheet-btn active" data-sheet="/terrain.png">Terrain</button>
+            <button class="ssheet-btn" data-sheet="/items.png">Items</button>
+            <button class="ssheet-btn" data-sheet="/guns.png">Armas</button>
+            <button class="ssheet-btn" data-sheet="/char.png">Char</button>
+            <button class="ssheet-btn" data-sheet="/particles.png">FX</button>
+          </div>
+          <button class="sprite-picker-close" id="sprite-picker-close">✕</button>
+        </div>
+        <canvas id="sprite-picker-canvas" width="340" height="420"></canvas>
+        <div class="sprite-picker-controls">
+          <div class="option-row">
+            <label class="field-label">Tamanho: <span id="stamp-size-val">64</span>px</label>
+            <input type="range" id="stamp-size" min="8" max="512" value="64" class="slider">
+          </div>
+          <div class="option-row">
+            <label class="field-label">Opacidade: <span id="stamp-opacity-val">100</span>%</label>
+            <input type="range" id="stamp-opacity" min="10" max="100" value="100" class="slider">
+          </div>
+          <div class="option-row">
+            <label class="field-label">Z-index</label>
+            <div style="display:flex;gap:4px">
+              <button class="size-btn" id="stamp-z-behind">Atrás</button>
+              <button class="size-btn active" id="stamp-z-front">Frente</button>
+            </div>
+          </div>
+          <div class="option-row" style="padding-top:4px">
+            <span id="stamp-sel-info" style="font-size:10px;color:#6ee7b7">Selecione uma área arrastando</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDEBAR: Properties -->
+      <aside class="sidebar right" id="properties-panel">
+        <div class="sidebar-header">PROPRIEDADES</div>
+        <div id="props-content">
+          <p class="no-selection">Nenhum item selecionado.<br>Use Selecionar e clique em um polígono.</p>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ASSET EDITOR VIEW -->
+    <div id="view-asset" class="editor-view hidden">
+      <aside class="sidebar left" id="asset-sidebar">
+        <div class="sidebar-header">CATEGORIAS</div>
+        <div class="tool-group">
+          <button class="tool-btn active" data-asset-tab="character">👤 Personagem</button>
+          <button class="tool-btn" data-asset-tab="weapon">🔫 Armas</button>
+          <button class="tool-btn" data-asset-tab="item">💊 Itens</button>
+          <button class="tool-btn" data-asset-tab="reference">🖼 Referências</button>
+        </div>
+      </aside>
+
+      <div class="canvas-area asset-canvas-area">
+        <!-- CHARACTER TAB -->
+        <div class="asset-tab active" id="asset-character">
+          <div class="asset-split">
+            <div class="asset-controls">
+              <div class="section-title">GOSTEK — Configuração Visual</div>
+              <div class="color-grid">
+                <div class="color-field"><label>Pele</label><input type="color" id="c-skin" value="#e8b88a"></div>
+                <div class="color-field"><label>Camisa</label><input type="color" id="c-shirt" value="#4a7c4f"></div>
+                <div class="color-field"><label>Calça</label><input type="color" id="c-pants" value="#3d5c3e"></div>
+                <div class="color-field"><label>Botas</label><input type="color" id="c-boots" value="#2a2a2a"></div>
+                <div class="color-field"><label>Capacete</label><input type="color" id="c-headgear" value="#4a7c4f">
+                </div>
+              </div>
+              <div class="slider-field">
+                <label>Velocidade de prévia</label>
+                <input type="range" id="gostek-speed" min="0" max="20" value="5" class="slider">
+                <span id="gostek-speed-val">5</span>
+              </div>
+              <div class="slider-field">
+                <label>Ângulo de mira</label>
+                <input type="range" id="gostek-aim" min="-45" max="45" value="0" class="slider">
+              </div>
+              <div class="slider-field">
+                <label>Agachado</label>
+                <input type="checkbox" id="gostek-crouch">
+              </div>
+              <div class="section-title" style="margin-top:24px">ARMA EM USO</div>
+              <select id="gostek-weapon" class="select-sm" style="width:100%">
+                <option value="AK-74">AK-74</option>
+                <option value="Barrett M82A1">Barrett M82A1</option>
+                <option value="SPAS-12">SPAS-12</option>
+                <option value="MP5">MP5</option>
+                <option value="USSOCOM">USSOCOM</option>
+              </select>
+              <button class="btn-action" id="btn-export-gostek" style="margin-top:16px">📤 Exportar Config</button>
+            </div>
+            <div class="preview-area">
+              <div class="preview-label">PRÉVIA AO VIVO</div>
+              <canvas id="gostek-canvas" width="300" height="320"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- WEAPON TAB -->
+        <div class="asset-tab hidden" id="asset-weapon">
+          <div class="asset-split">
+            <div class="asset-controls">
+              <div class="section-title">ARMAS</div>
+              <div id="weapon-list" class="weapon-list"></div>
+              <div class="section-title" style="margin-top:16px">VISUAL</div>
+              <div class="field-row"><label>Comprimento</label><input type="range" id="w-length" min="10" max="40"
+                  value="22" class="slider"><span id="w-length-val">22</span></div>
+              <div class="field-row"><label>Altura</label><input type="range" id="w-height" min="2" max="8" value="3"
+                  class="slider"><span id="w-height-val">3</span></div>
+              <div class="field-row"><label>Cor corpo</label><input type="color" id="w-color" value="#555555"></div>
+              <div class="field-row"><label>Cor cabo</label><input type="color" id="w-handle" value="#3a3a3a"></div>
+            </div>
+            <div class="preview-area">
+              <div class="preview-label">PRÉVIA DA ARMA</div>
+              <canvas id="weapon-canvas" width="320" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ITEM TAB -->
+        <div class="asset-tab hidden" id="asset-item">
+          <div class="asset-split">
+            <div class="asset-controls">
+              <div class="section-title">ITENS & PICKUPS</div>
+              <div class="item-list">
+                <button class="item-btn active" data-item="health">💊 Saúde</button>
+                <button class="item-btn" data-item="grenades">💣 Granadas</button>
+              </div>
+              <div class="section-title" style="margin-top:16px">CONFIG</div>
+              <div class="field-row"><label>Timer de respawn (frames)</label><input type="number" id="item-timer"
+                  class="input-sm" value="600" min="0"></div>
+              <div class="field-row"><label>Cor</label><input type="color" id="item-color" value="#44ff88"></div>
+            </div>
+            <div class="preview-area">
+              <div class="preview-label">PRÉVIA DO ITEM</div>
+              <canvas id="item-canvas" width="200" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- REFERENCE IMAGES TAB -->
+        <div class="asset-tab hidden" id="asset-reference">
+          <div class="asset-split wide">
+            <div class="asset-controls">
+              <div class="section-title">IMAGENS DE REFERÊNCIA</div>
+              <p class="hint-text">Carregue imagens para usar como overlay no editor de mapa. Útil para recriar sprites
+                e layouts de referência.</p>
+
+              <div class="drop-zone" id="img-drop-zone">
+                <div class="drop-icon">🖼</div>
+                <div class="drop-text">Arraste imagens aqui<br><small>ou clique para selecionar</small></div>
+                <input type="file" id="img-file-input" accept="image/*" multiple style="display:none">
+              </div>
+
+              <div class="section-title" style="margin-top:16px">IMAGENS CARREGADAS</div>
+              <div id="img-list" class="img-list">
+                <p class="no-selection">Nenhuma imagem carregada.</p>
+              </div>
+            </div>
+            <div class="preview-area reference-preview">
+              <div class="preview-label">VISUALIZAÇÃO NO MAPA (abre Map Editor com overlay)</div>
+              <div class="ref-hint">
+                <div class="ref-hint-icon">💡</div>
+                <p>As imagens carregadas aqui ficam visíveis como camadas semi-transparentes no editor de mapa. Alterne
+                  para <b>MAP EDITOR</b> para visualizá-las.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Asset right panel (export) -->
+      <aside class="sidebar right" id="asset-export-panel">
+        <div class="sidebar-header">EXPORTAR ASSET</div>
+        <div class="export-section">
+          <p class="hint-text">Configure e exporte o asset selecionado como JSON.</p>
+          <div id="asset-export-preview" class="code-preview"></div>
+          <button class="btn-action accent" id="btn-export-asset" style="margin-top:12px">📋 Copiar JSON</button>
+          <button class="btn-action" id="btn-download-asset" style="margin-top:8px">⬇ Download</button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- STATUS BAR -->
+    <footer id="statusbar">
+      <span id="status-tool">Ferramenta: SELECT</span>
+      <span class="divider">|</span>
+      <span id="status-coords">X: 0 Y: 0</span>
+      <span class="divider">|</span>
+      <span id="status-zoom">Zoom: 100%</span>
+      <span class="divider">|</span>
+      <span id="status-count">Polígonos: 0 | Spawns: 0 | Pickups: 0</span>
+      <span class="divider">|</span>
+      <span id="status-hint">Scroll para zoom · Espaço+Drag para navegar · Enter para fechar polígono</span>
+    </footer>
+
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <span>📤 Exportar Mapa</span>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-format="json">JSON</button>
+        <button class="modal-tab" data-format="ts">TypeScript</button>
+      </div>
+      <textarea id="export-output" class="export-textarea" readonly></textarea>
+      <div class="modal-footer">
+        <button class="btn-action" id="btn-copy-export">📋 Copiar</button>
+        <button class="btn-action accent" id="btn-download-export">⬇ Download</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/editor/main.ts"></script>
+</body>
+
+</html>

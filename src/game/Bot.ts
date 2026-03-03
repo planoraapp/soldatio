@@ -1,7 +1,7 @@
 import { Vector2 } from '../engine/Vector2';
 import { IInput } from '../engine/IInput';
 import { Player } from './Player';
-import { MapPolygon } from './GameMap';
+import { MapPolygon, PickupData, PickupType } from './GameMap';
 import { BulletManager } from './Bullet';
 import { ParticleSystem } from './Particles';
 import { raycastMap } from './Physics';
@@ -71,7 +71,8 @@ export class Bot extends Player {
         bullets: BulletManager,
         grenades: any, // GrenadeManager
         particles: ParticleSystem,
-        players: Player[]
+        players: Player[],
+        pickups: PickupData[] = []
     ): void {
         this.target = target;
         this.botInput.clearPerFrame();
@@ -82,7 +83,7 @@ export class Bot extends Player {
         }
 
         this.updateAimError();
-        this.think(polygons);
+        this.think(polygons, pickups);
         super.update(this.botInput, polygons, bullets, grenades, particles, players);
     }
 
@@ -98,8 +99,29 @@ export class Bot extends Player {
         }
     }
 
-    private think(polygons: MapPolygon[]): void {
+    private think(polygons: MapPolygon[], pickups: PickupData[] = []): void {
         if (!this.target) return;
+
+        // --- HEALTH SEEKING: prioritise nearby medkits when low HP ---
+        if (this.health < 60) {
+            // Find nearest available health pickup
+            let nearest: PickupData | null = null;
+            let nearestDist = Infinity;
+            for (const p of pickups) {
+                if (p.type !== PickupType.HEALTH || p.timer > 0) continue;
+                const d = Math.abs(p.x - this.pos.x);
+                if (d < nearestDist) { nearestDist = d; nearest = p; }
+            }
+            if (nearest) {
+                const goRight = nearest.x > this.pos.x;
+                this.botInput.setKeyDown('KeyD', goRight);
+                this.botInput.setKeyDown('KeyA', !goRight);
+                this.botInput.mouseLeft = false;
+                // Jump over small obstacles if stuck
+                if (this.isGrounded && Math.random() > 0.95) this.botInput.setKeyDown('KeyW', true);
+                return; // Skip combat logic
+            }
+        }
 
         const dist = this.pos.distance(this.target.pos);
         const dir = this.target.pos.sub(this.pos).normalize();

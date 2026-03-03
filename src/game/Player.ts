@@ -539,7 +539,8 @@ export class Player {
             this.weapon.name,
             reloadProgress,
             this.backflipRotation + this.rollRotation,
-            this.isRolling || this.isBackflipping
+            this.isRolling || this.isBackflipping,
+            this.vel.x
         );
     }
 

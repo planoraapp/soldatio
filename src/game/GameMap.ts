@@ -1,4 +1,5 @@
 import { Vector2 } from '../engine/Vector2';
+import { loadAllSprites, getTerrainPattern, getImage as getSpriteImage } from '../engine/SpriteSheet';
 
 // ========================
 // Polygon Types & Materials
@@ -144,6 +145,7 @@ export class GameMap {
     data: MapData;
     private skyImage: HTMLImageElement | null = null;
     private imageCache: Map<string, HTMLImageElement> = new Map();
+    private offscreenCanvas: HTMLCanvasElement | null = null;
 
     constructor(data: MapData) {
         this.data = data;
@@ -266,18 +268,51 @@ export class GameMap {
         ctx.restore();
     }
 
-    /** Render all map polygons with shadows */
+    /** Render all map polygons (uses offscreen cache for performance) */
     render(ctx: CanvasRenderingContext2D): void {
+        if (!this.offscreenCanvas) {
+            this.generateCache();
+        }
+        if (this.offscreenCanvas) {
+            const { bounds } = this.data;
+            ctx.drawImage(this.offscreenCanvas, bounds.left, bounds.top);
+        }
+    }
+
+    /** Force recreation of the offscreen canvas (call when map geometry changes) */
+    invalidateCache(): void {
+        this.offscreenCanvas = null;
+    }
+
+    /** Call after sprites have loaded to rebuild the textured cache */
+    async loadSpritesAndRebuild(): Promise<void> {
+        await loadAllSprites();
+        this.invalidateCache();
+    }
+
+    private generateCache(): void {
+        const { bounds } = this.data;
+        const width = bounds.right - bounds.left;
+        const height = bounds.bottom - bounds.top;
+
+        this.offscreenCanvas = document.createElement('canvas');
+        this.offscreenCanvas.width = width;
+        this.offscreenCanvas.height = height;
+        const tempCtx = this.offscreenCanvas.getContext('2d')!;
+
+        // Translate so world-coordinates map correctly onto the canvas
+        tempCtx.translate(-bounds.left, -bounds.top);
+
         // First pass: background polygons
         for (const poly of this.data.polygons) {
             if (poly.type !== PolygonType.BACKGROUND) continue;
-            this.renderPolygon(ctx, poly);
+            this.renderPolygon(tempCtx, poly);
         }
 
         // Second pass: collidable polygons with shadows
         for (const poly of this.data.polygons) {
             if (poly.type === PolygonType.BACKGROUND) continue;
-            this.renderPolygonWithShadow(ctx, poly);
+            this.renderPolygonWithShadow(tempCtx, poly);
         }
     }
 
@@ -289,8 +324,20 @@ export class GameMap {
             ctx.lineTo(poly.vertices[i].x, poly.vertices[i].y);
         }
         ctx.closePath();
-        ctx.fillStyle = poly.color;
-        ctx.fill();
+
+        // Try sprite texture pattern
+        const mat = poly.material as string | undefined;
+        const pattern = mat ? getTerrainPattern(mat, ctx) : null;
+        if (pattern) {
+            ctx.save();
+            ctx.clip();
+            ctx.fillStyle = pattern;
+            ctx.fillRect(-10000, -10000, 30000, 30000);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = poly.color;
+            ctx.fill();
+        }
     }
 
     private renderPolygonWithShadow(ctx: CanvasRenderingContext2D, poly: MapPolygon): void {
@@ -304,9 +351,19 @@ export class GameMap {
         }
         ctx.closePath();
 
-        // Fill polygon
-        ctx.fillStyle = poly.color;
-        ctx.fill();
+        // Fill with sprite texture or fallback colour
+        const mat = poly.material as string | undefined;
+        const pattern = mat ? getTerrainPattern(mat, ctx) : null;
+        if (pattern) {
+            ctx.save();
+            ctx.clip();
+            ctx.fillStyle = pattern;
+            ctx.fillRect(-10000, -10000, 30000, 30000);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = poly.color;
+            ctx.fill();
+        }
 
         // Edge shadow: draw bottom edges darker for depth illusion
         const verts = poly.vertices;
@@ -391,110 +448,37 @@ export class GameMap {
         ctx.scale(sc, sc);
         if (item.rotation) ctx.rotate(item.rotation);
 
-        const baseColor = item.color || '#6a5a3a';
+        const sheet = getSpriteImage('/items.png');
 
-        switch (item.type) {
-            case 'crate':
-                ctx.fillStyle = '#8B7355';
-                ctx.fillRect(-12, -12, 24, 24);
-                ctx.strokeStyle = '#5a4a2a';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(-12, -12, 24, 24);
-                // Cross on crate
-                ctx.beginPath();
-                ctx.moveTo(-12, -12); ctx.lineTo(12, 12);
-                ctx.moveTo(12, -12); ctx.lineTo(-12, 12);
-                ctx.stroke();
-                break;
+        // items.png: 765×1024, 3 cols × 4 rows → cell 255×256
+        const CW = 255, CH = 256;
+        function drawItem(col: number, row: number, w: number, h: number): void {
+            if (sheet?.complete) {
+                ctx.drawImage(sheet, col * CW, row * CH, CW, CH, -w / 2, -h, w, h);
+            }
+        }
 
-            case 'barrel':
-                ctx.fillStyle = '#555';
-                ctx.beginPath();
-                ctx.ellipse(0, 0, 10, 14, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                // Bands
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(-10, -5); ctx.lineTo(10, -5);
-                ctx.moveTo(-10, 5); ctx.lineTo(10, 5);
-                ctx.stroke();
-                break;
-
-            case 'sandbag':
-                ctx.fillStyle = '#B8A67E';
-                ctx.beginPath();
-                ctx.ellipse(0, 3, 16, 8, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#A89668';
-                ctx.beginPath();
-                ctx.ellipse(0, -3, 16, 8, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-                ctx.lineWidth = 0.5;
-                ctx.stroke();
-                break;
-
+        switch (item.type as string) {
+            case 'crate': drawItem(0, 1, 28, 28); break;
+            case 'barrel': drawItem(1, 1, 22, 30); break;
+            // rusted barrel fallback to barrel slot
+            case 'barrel_rusted': drawItem(2, 3, 22, 30); break;
+            case 'sandbag': drawItem(2, 1, 36, 22); break;
             case 'flag':
-                const teamColor = item.team === 1 ? '#cc3333' : item.team === 2 ? '#3333cc' : '#cccc33';
-                ctx.strokeStyle = '#888';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, 10);
-                ctx.lineTo(0, -20);
-                ctx.stroke();
-                // Flag cloth
-                ctx.fillStyle = teamColor;
-                ctx.beginPath();
-                ctx.moveTo(0, -20);
-                ctx.lineTo(18, -15);
-                ctx.lineTo(0, -8);
-                ctx.closePath();
-                ctx.fill();
+                // flag_blue col=0 row=2 / flag_red col=1 row=2
+                if (item.team === 1) drawItem(1, 2, 32, 44); // red
+                else drawItem(0, 2, 32, 44); // blue
                 break;
+            case 'sign': drawItem(2, 2, 30, 36); break;
+            case 'bush': drawItem(0, 3, 34, 26); break;
+            case 'pillar': drawItem(1, 3, 24, 52); break;
 
-            case 'pillar':
+            default: {
+                // Fallback: simple coloured box
+                const baseColor = item.color || '#6a5a3a';
                 ctx.fillStyle = baseColor;
-                ctx.fillRect(-8, -30, 16, 60);
-                ctx.fillStyle = 'rgba(0,0,0,0.15)';
-                ctx.fillRect(-8, 20, 16, 10);
-                ctx.fillStyle = 'rgba(255,255,255,0.08)';
-                ctx.fillRect(-8, -30, 16, 5);
-                break;
-
-            case 'bush':
-                ctx.fillStyle = '#3a6b2a';
-                ctx.globalAlpha = 0.7;
-                ctx.beginPath();
-                ctx.arc(-6, 0, 10, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#2d5a20';
-                ctx.beginPath();
-                ctx.arc(6, -2, 12, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#4a7c3a';
-                ctx.beginPath();
-                ctx.arc(0, -6, 9, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-                break;
-
-            case 'sign':
-                ctx.strokeStyle = '#666';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, 10);
-                ctx.lineTo(0, -10);
-                ctx.stroke();
-                ctx.fillStyle = '#c8b870';
-                ctx.fillRect(-14, -18, 28, 14);
-                ctx.strokeStyle = '#8a7a4a';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(-14, -18, 28, 14);
-                break;
+                ctx.fillRect(-10, -20, 20, 20);
+            }
         }
 
         ctx.restore();

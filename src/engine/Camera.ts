@@ -18,9 +18,20 @@ export class Camera {
     private targetX: number = 0;
     private targetY: number = 0;
 
+    /** Current shake magnitude in world units */
+    private shakeIntensity: number = 0;
+
     resize(width: number, height: number): void {
         this.width = width;
         this.height = height;
+    }
+
+    /**
+     * Apply a camera shake. Intensities accumulate and decay exponentially.
+     * @param intensity World-unit magnitude of the shake (e.g. 10 for explosion, 3 for bullet hit)
+     */
+    applyShake(intensity: number): void {
+        this.shakeIntensity += intensity;
     }
 
     /**
@@ -40,6 +51,15 @@ export class Camera {
         // Smooth interpolation
         this.x += (this.targetX - this.x) * this.smoothing;
         this.y += (this.targetY - this.y) * this.smoothing;
+
+        // Camera shake: random offset that decays exponentially
+        if (this.shakeIntensity > 0.1) {
+            this.x += (Math.random() - 0.5) * this.shakeIntensity;
+            this.y += (Math.random() - 0.5) * this.shakeIntensity;
+            this.shakeIntensity *= 0.85; // Decay per frame
+        } else {
+            this.shakeIntensity = 0;
+        }
     }
 
     /** Get the center of the camera in world coordinates */

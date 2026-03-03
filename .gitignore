@@ -1,0 +1,20 @@
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# OS & Editor
+.DS_Store
+src/.DS_Store
+*.local
+
+# Sprites na raiz (ficam em public/ já versionados)
+/char.png
+/guns.png
+/items.png
+/particles.png
+/terrain.png
+
+# Vite cache
+.vite/
