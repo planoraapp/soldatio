@@ -4,6 +4,7 @@ export interface WeaponVisual {
     height: number;
     color: string;
     handleColor: string;
+    customSprite?: string;
 }
 
 /**
@@ -36,6 +37,21 @@ export class WeaponPreview {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const w = this.weapon;
+
+        if (w.customSprite) {
+            const img = new Image();
+            img.src = w.customSprite;
+            img.onload = () => {
+                ctx.save();
+                ctx.imageSmoothingEnabled = false;
+                ctx.translate(cx, cy);
+                ctx.drawImage(img, -64, -64, 128, 128);
+                ctx.restore();
+                this.renderLabels(cx, cy); // Draw labels after image loads
+            };
+            return;
+        }
+
         const wL = w.length * scale;
         const wH = w.height * scale;
 
@@ -75,6 +91,12 @@ export class WeaponPreview {
 
         ctx.restore();
 
+        this.renderLabels(cx, cy);
+    }
+
+    private renderLabels(cx: number, cy: number): void {
+        const { ctx } = this;
+        const w = this.weapon;
         // Labels
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.font = '12px "JetBrains Mono", monospace';

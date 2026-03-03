@@ -121,6 +121,10 @@ export class MapEditor {
     stampOpacity = 1;
     stampZIndex = 0;
 
+    // Test Mode
+    testMode = false;
+    testViewMode: 'VISUAL' | 'PHYSICS' = 'VISUAL';
+
     // Callbacks
     onStatusUpdate: ((msg: string) => void) | null = null;
     onSelectionChange: ((poly: EditPolygon | null) => void) | null = null;
@@ -240,7 +244,7 @@ export class MapEditor {
         this.mouseScreenX = sx; this.mouseScreenY = sy;
         const w = this.screenToWorld(sx, sy);
 
-        // Middle mouse or space+drag → PAN
+        // Allow panning always
         if (e.button === 1 || (e.button === 0 && this._spaceDown)) {
             this.isPanning = true;
             this.panStartX = sx; this.panStartY = sy;
@@ -248,6 +252,8 @@ export class MapEditor {
             this.canvas.style.cursor = 'grabbing';
             return;
         }
+
+        if (this.testMode) return; // Exit early in test mode
 
         if (e.button !== 0) return;
 
@@ -487,22 +493,32 @@ export class MapEditor {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Background
-        ctx.fillStyle = '#09090f';
+        ctx.fillStyle = '#1a2233'; // More "game-like" background
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        this.renderGrid();
-        this.renderBoundsRect();
+        if (!this.testMode) {
+            this.renderGrid();
+            this.renderBoundsRect();
+        }
+
         this.renderSpritePlacements(false); // behind polygons
         this.renderPolygons();
-        this.renderSpawns();
-        this.renderPickups();
-        this.renderScenery();
+
+        if (!this.testMode) {
+            this.renderSpawns();
+            this.renderPickups();
+            this.renderScenery();
+        }
+
         this.renderSpritePlacements(true);  // in front of polygons
-        this.renderDrawing();
-        this.imageLoader.render(ctx, this.panX, this.panY, this.zoom);
-        if (this.tool === 'BRUSH') this.renderBrushCursor();
-        if (this.tool === 'PLACE_PRESET' && this.pendingPreset) this.renderPresetGhost();
-        if (this.tool === 'STAMP' && this.pendingStamp) this.renderStampGhost();
+
+        if (!this.testMode) {
+            this.renderDrawing();
+            this.imageLoader.render(ctx, this.panX, this.panY, this.zoom);
+            if (this.tool === 'BRUSH') this.renderBrushCursor();
+            if (this.tool === 'PLACE_PRESET' && this.pendingPreset) this.renderPresetGhost();
+            if (this.tool === 'STAMP' && this.pendingStamp) this.renderStampGhost();
+        }
     }
 
     /** Draw all sprite placements at their world positions */
@@ -650,40 +666,47 @@ export class MapEditor {
                 ctx.fillStyle = poly.color;
                 ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
             }
-            // Type-colour tint overlay
-            ctx.fillStyle = cols.fill;
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            // In Test Mode + Visual Mode, we don't show the physics tint
+            const showTint = !this.testMode || this.testViewMode === 'PHYSICS';
+            if (showTint) {
+                ctx.fillStyle = cols.fill;
+                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            }
             ctx.restore();
 
-            ctx.strokeStyle = isSelected ? '#ffffff' : cols.stroke;
-            ctx.lineWidth = isSelected ? 2 : 1;
-            ctx.stroke();
+            const showOutline = !this.testMode || this.testViewMode === 'PHYSICS';
+            if (showOutline) {
+                ctx.strokeStyle = isSelected ? '#ffffff' : cols.stroke;
+                ctx.lineWidth = isSelected ? 2 : 1;
+                ctx.stroke();
+            }
 
-            // TYPE label
-            const cx = poly.vertices.reduce((s, v) => s + v.x, 0) / poly.vertices.length;
-            const cy = poly.vertices.reduce((s, v) => s + v.y, 0) / poly.vertices.length;
-            const [labelX, labelY] = this.worldToScreen(cx, cy);
-            ctx.fillStyle = isSelected ? '#ffffff' : cols.stroke;
-            ctx.font = `${Math.max(8, 10 * this.zoom)}px JetBrains Mono, monospace`;
-            ctx.textAlign = 'center';
-            ctx.fillText(cols.label, labelX, labelY + 4);
+            // TYPE label and handles (Only in editor mode)
+            if (!this.testMode) {
+                const cx = poly.vertices.reduce((s, v) => s + v.x, 0) / poly.vertices.length;
+                const cy = poly.vertices.reduce((s, v) => s + v.y, 0) / poly.vertices.length;
+                const [labelX, labelY] = this.worldToScreen(cx, cy);
+                ctx.fillStyle = isSelected ? '#ffffff' : cols.stroke;
+                ctx.font = `${Math.max(8, 10 * this.zoom)}px JetBrains Mono, monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText(cols.label, labelX, labelY + 4);
 
-            // Vertex handles if selected
-            if (isSelected) {
-                for (let i = 0; i < poly.vertices.length; i++) {
-                    const [vx, vy] = this.worldToScreen(poly.vertices[i].x, poly.vertices[i].y);
-                    ctx.fillStyle = i === this.selectedVertexIdx ? '#ffffff' : '#7c3aed';
-                    ctx.beginPath();
-                    ctx.arc(vx, vy, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+                if (isSelected) {
+                    for (let i = 0; i < poly.vertices.length; i++) {
+                        const [vx, vy] = this.worldToScreen(poly.vertices[i].x, poly.vertices[i].y);
+                        ctx.fillStyle = i === this.selectedVertexIdx ? '#ffffff' : '#7c3aed';
+                        ctx.beginPath();
+                        ctx.arc(vx, vy, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
 
-                    // Vertex coordinates tooltip
-                    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-                    ctx.font = '9px JetBrains Mono, monospace';
-                    ctx.fillText(`${Math.round(poly.vertices[i].x)},${Math.round(poly.vertices[i].y)}`, vx + 7, vy - 4);
+                        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                        ctx.font = '9px JetBrains Mono, monospace';
+                        ctx.fillText(`${Math.round(poly.vertices[i].x)},${Math.round(poly.vertices[i].y)}`, vx + 7, vy - 4);
+                    }
                 }
             }
             ctx.restore();

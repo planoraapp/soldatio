@@ -26,8 +26,12 @@
         </nav>
       </div>
       <div class="topbar-right">
+        <button class="btn-topbar" id="btn-save-local" title="Salvar no navegador">💾 Salvar</button>
+        <button class="btn-topbar" id="btn-load-local" title="Abrir do navegador">📂 Abrir</button>
+        <button class="btn-topbar" id="btn-new-map">📄 Novo</button>
         <button class="btn-topbar" id="btn-import">📂 Importar</button>
-        <button class="btn-topbar accent" id="btn-export">📤 Exportar</button>
+        <button class="btn-topbar" id="btn-export">📤 Exportar</button>
+        <button class="btn-topbar accent" id="btn-test-map">🚀 TESTAR MAPA</button>
       </div>
     </header>
 
@@ -216,6 +220,18 @@
           Clique para adicionar vértice · <b>Enter</b> ou clique no 1º ponto para fechar
         </div>
         <canvas id="map-canvas"></canvas>
+
+        <!-- TEST CONTROLS OVERLAY -->
+        <div id="test-overlay" class="test-overlay hidden">
+          <div class="test-controls">
+            <div class="test-mode-badge">MODO DE TESTE</div>
+            <div class="test-btn-group">
+              <button class="btn-test active" id="btn-test-visual">Visão Real</button>
+              <button class="btn-test" id="btn-test-physics">Visão Física</button>
+            </div>
+            <button class="btn-test-exit" id="btn-stop-test">Voltar ao Editor</button>
+          </div>
+        </div>
       </div>
 
       <!-- FLOATING SPRITE PICKER PANEL -->
@@ -271,6 +287,7 @@
           <button class="tool-btn active" data-asset-tab="character">👤 Personagem</button>
           <button class="tool-btn" data-asset-tab="weapon">🔫 Armas</button>
           <button class="tool-btn" data-asset-tab="item">💊 Itens</button>
+          <button class="tool-btn" data-asset-tab="pixel-editor">✏ Pixel Art</button>
           <button class="tool-btn" data-asset-tab="reference">🖼 Referências</button>
         </div>
       </aside>
@@ -357,6 +374,50 @@
             <div class="preview-area">
               <div class="preview-label">PRÉVIA DO ITEM</div>
               <canvas id="item-canvas" width="200" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- PIXEL EDITOR TAB -->
+        <div class="asset-tab hidden" id="asset-pixel-editor">
+          <div class="asset-split pixel-editor-split">
+            <div class="asset-controls pixel-tools">
+              <div class="section-title">DESENHAR ASSET</div>
+              <div class="pixel-tool-grid">
+                <button class="pixel-tool-btn active" id="px-tool-pencil">✏</button>
+                <button class="pixel-tool-btn" id="px-tool-eraser">🗑</button>
+                <button class="pixel-tool-btn" id="px-tool-bucket">🪣</button>
+                <button class="pixel-tool-btn" id="px-tool-load" title="Carregar arte atual deste asset">📥</button>
+              </div>
+              <div class="section-title" style="margin-top:20px">CORES</div>
+              <div id="px-palette" class="pixel-palette">
+                <!-- Filled by JS -->
+              </div>
+              <input type="color" id="px-color-custom" class="px-custom-picker">
+
+              <div class="section-title" style="margin-top:24px">ATRIBUIR A</div>
+              <select id="px-assign-target" class="select-sm" style="width:100%">
+                <option value="none">-- Selecionar Asset --</option>
+                <optgroup label="Armas" id="px-target-weapons"></optgroup>
+                <optgroup label="Itens" id="px-target-items"></optgroup>
+              </select>
+
+              <div class="section-title" style="margin-top:20px">RESOLUÇÃO</div>
+              <select id="px-resolution" class="select-sm" style="width:100%">
+                <option value="32">32x32 (Clássico)</option>
+                <option value="64" selected>64x64 (HD)</option>
+                <option value="128">128x128 (Ultra)</option>
+              </select>
+
+              <button class="btn-action accent" id="btn-apply-pixel" style="margin-top:12px">✨ Aplicar ao Asset</button>
+              <button class="btn-action" id="btn-clear-pixel" style="margin-top:8px">🗑 Limpar Tela</button>
+            </div>
+            <div class="pixel-editor-main">
+              <div class="pixel-canvas-container">
+                <canvas id="pixel-canvas" width="512" height="512"></canvas>
+                <div class="pixel-grid-overlay" id="pixel-grid"></div>
+              </div>
+              <div class="pixel-info">Tamanho: 64x64 | Clique/Arraste para desenhar</div>
             </div>
           </div>
         </div>

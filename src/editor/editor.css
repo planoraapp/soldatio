@@ -1225,3 +1225,219 @@ canvas {
   padding: 6px 0 4px;
   background: var(--bg-panel);
 }
+
+/* ===== TEST OVERLAY ===== */
+.test-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.test-overlay.hidden {
+  display: none !important;
+}
+
+.test-controls {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 17, 23, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-acc);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  pointer-events: all;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.test-mode-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-lt);
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+  background: rgba(124, 58, 237, 0.15);
+  border-radius: 4px;
+}
+
+.test-btn-group {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-deep);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.btn-test {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-test:hover {
+  color: var(--text-1);
+}
+
+.btn-test.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
+.btn-test-exit {
+  padding: 7px 16px;
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-test-exit:hover {
+  background: #3a3a3a;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ===== PIXEL EDITOR ===== */
+.pixel-editor-split {
+  gap: 32px !important;
+}
+
+.pixel-canvas-container {
+  position: relative;
+  background: #111;
+  border: 1px solid var(--border-acc);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  image-rendering: pixelated;
+  width: 512px;
+  height: 512px;
+}
+
+#pixel-canvas {
+  width: 512px;
+  height: 512px;
+  display: block;
+  cursor: crosshair;
+}
+
+.pixel-grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 8px 8px, 8px 8px, 64px 64px, 64px 64px;
+  /* 512 / 64 = 8px per pixel, stronger line every 8 pixels (64px) */
+}
+
+.pixel-editor-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pixel-info {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+.pixel-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.pixel-tool-btn {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-deep);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.pixel-tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.pixel-tool-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.pixel-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.px-color-swatch {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s;
+}
+
+.px-color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.px-color-swatch.active {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.px-custom-picker {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+
+.btn-remove:hover {
+  color: var(--danger);
+}

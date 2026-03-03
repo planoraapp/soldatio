@@ -110,6 +110,39 @@ document.getElementById('scenery-type')?.addEventListener('change', e => {
 document.getElementById('map-name')?.addEventListener('input', e => {
     mapEditor.mapName = (e.target as HTMLInputElement).value;
 });
+
+// Persistence
+document.getElementById('btn-save-local')?.addEventListener('click', () => {
+    const data = mapEditor.toMapData();
+    const name = prompt('Nome para salvar o mapa:', mapEditor.mapName) || 'mapa_sem_nome';
+    localStorage.setItem(`map_${name}`, JSON.stringify(data));
+    alert('Mapa salvo com sucesso no navegador!');
+});
+
+document.getElementById('btn-load-local')?.addEventListener('click', () => {
+    const maps = Object.keys(localStorage).filter(k => k.startsWith('map_'));
+    if (maps.length === 0) {
+        alert('Nenhum mapa salvo localmente.');
+        return;
+    }
+    const nameStr = maps.map(m => m.replace('map_', '')).join(', ');
+    const name = prompt(`Mapas disponíveis: ${nameStr}\n\nDigite o nome do mapa para abrir:`);
+    if (name) {
+        const raw = localStorage.getItem(`map_${name}`);
+        if (raw) {
+            try {
+                const data = JSON.parse(raw);
+                mapEditor.loadMapData(data);
+                const nameIn = document.getElementById('map-name') as HTMLInputElement;
+                if (nameIn) nameIn.value = data.name;
+                alert('Mapa carregado!');
+            } catch { alert('Erro ao carregar o mapa.'); }
+        } else {
+            alert('Mapa não encontrado.');
+        }
+    }
+});
+
 (['left', 'top', 'right', 'bottom'] as const).forEach(k => {
     document.getElementById(`bounds-${k}`)?.addEventListener('input', e => {
         mapEditor.bounds[k] = Number((e.target as HTMLInputElement).value) || 0;
@@ -117,6 +150,14 @@ document.getElementById('map-name')?.addEventListener('input', e => {
 });
 
 // Clear and load sample
+document.getElementById('btn-new-map')?.addEventListener('click', () => {
+    if (confirm('Criar um novo mapa? Todo o progresso não salvo será perdido.')) {
+        mapEditor.clearAll();
+        mapEditor.mapName = 'novoMapa';
+        const nameIn = document.getElementById('map-name') as HTMLInputElement;
+        if (nameIn) nameIn.value = 'novoMapa';
+    }
+});
 document.getElementById('btn-clear-map')?.addEventListener('click', () => {
     if (confirm('Limpar todo o mapa?')) mapEditor.clearAll();
 });
@@ -483,4 +524,46 @@ document.getElementById('stamp-z-front')?.addEventListener('click', () => {
     mapEditor.stampZIndex = 0;
     document.getElementById('stamp-z-front')?.classList.add('active');
     document.getElementById('stamp-z-behind')?.classList.remove('active');
+});
+// ─────────────────────────────────────────────
+// Test Mode Handlers
+// ─────────────────────────────────────────────
+const testOverlay = document.getElementById('test-overlay');
+const btnTestMap = document.getElementById('btn-test-map');
+const btnStopTest = document.getElementById('btn-stop-test');
+const btnTestVisual = document.getElementById('btn-test-visual');
+const btnTestPhysics = document.getElementById('btn-test-physics');
+
+btnTestMap?.addEventListener('click', () => {
+    mapEditor.testMode = true;
+    testOverlay?.classList.remove('hidden');
+    // Hide sidebars
+    document.getElementById('toolbox')?.classList.add('hidden');
+    document.getElementById('properties-panel')?.classList.add('hidden');
+    document.getElementById('topbar')?.classList.add('hidden');
+    document.getElementById('statusbar')?.classList.add('hidden');
+    mapEditor.onResize();
+});
+
+btnStopTest?.addEventListener('click', () => {
+    mapEditor.testMode = false;
+    testOverlay?.classList.add('hidden');
+    // Show sidebars
+    document.getElementById('toolbox')?.classList.remove('hidden');
+    document.getElementById('properties-panel')?.classList.remove('hidden');
+    document.getElementById('topbar')?.classList.remove('hidden');
+    document.getElementById('statusbar')?.classList.remove('hidden');
+    mapEditor.onResize();
+});
+
+btnTestVisual?.addEventListener('click', () => {
+    mapEditor.testViewMode = 'VISUAL';
+    btnTestVisual.classList.add('active');
+    btnTestPhysics?.classList.remove('active');
+});
+
+btnTestPhysics?.addEventListener('click', () => {
+    mapEditor.testViewMode = 'PHYSICS';
+    btnTestPhysics.classList.add('active');
+    btnTestVisual?.classList.remove('active');
 });

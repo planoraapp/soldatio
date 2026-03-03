@@ -30,8 +30,11 @@ export class GostekPreview {
         this.start();
     }
 
-    setConfig(cfg: GostekConfig): void {
+    setConfig(cfg: GostekConfig, customSprites?: Record<string, string>): void {
         Object.assign(this.gostek, cfg);
+        if (customSprites) {
+            this.gostek.customSprites = customSprites;
+        }
     }
 
     setWalkSpeed(s: number): void { this.walkSpeed = s; }

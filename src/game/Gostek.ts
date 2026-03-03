@@ -17,6 +17,9 @@ export class Gostek {
     bootColor: string = '#2a2a2a';
     headgearColor: string = '#4a7c4f';
 
+    /** Custom sprites for parts (head, torso, arm, leg, boot, headgear) as data URLs */
+    customSprites: Record<string, string> = {};
+
     /**
      * Update animation state.
      * @param velocityX horizontal velocity
@@ -72,36 +75,48 @@ export class Gostek {
 
         // ========== TORSO ==========
         const torsoY = -14 + crouchOffset;
-        ctx.fillStyle = this.shirtColor;
-        ctx.beginPath();
-        ctx.ellipse(0, torsoY, 6 * 1, 8, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+        if (this.customSprites['torso']) {
+            this.renderCustomPart(ctx, 'torso', 0, torsoY, 12, 16, 0);
+        } else {
+            ctx.fillStyle = this.shirtColor;
+            ctx.beginPath();
+            ctx.ellipse(0, torsoY, 6 * 1, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
 
         // ========== HEAD ==========
         const headY = torsoY - 10;
         // Helmet/beret
-        ctx.fillStyle = this.headgearColor;
-        ctx.beginPath();
-        ctx.ellipse(dir * 1, headY - 2, 7, 5, 0, Math.PI, Math.PI * 2);
-        ctx.fill();
+        if (this.customSprites['headgear']) {
+            this.renderCustomPart(ctx, 'headgear', dir * 1, headY - 2, 14, 10, 0);
+        } else {
+            ctx.fillStyle = this.headgearColor;
+            ctx.beginPath();
+            ctx.ellipse(dir * 1, headY - 2, 7, 5, 0, Math.PI, Math.PI * 2);
+            ctx.fill();
+        }
 
         // Head circle
-        ctx.fillStyle = this.skinColor;
-        ctx.beginPath();
-        ctx.arc(0, headY, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+        if (this.customSprites['head']) {
+            this.renderCustomPart(ctx, 'head', 0, headY, 10, 10, 0);
+        } else {
+            ctx.fillStyle = this.skinColor;
+            ctx.beginPath();
+            ctx.arc(0, headY, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
 
-        // Eye
-        ctx.fillStyle = '#222';
-        ctx.beginPath();
-        ctx.arc(dir * 2.5, headY - 1, 1, 0, Math.PI * 2);
-        ctx.fill();
+            // Eye
+            ctx.fillStyle = '#222';
+            ctx.beginPath();
+            ctx.arc(dir * 2.5, headY - 1, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         // ========== ARMS & WEAPON ==========
         if (!isRolling) {
@@ -142,30 +157,42 @@ export class Gostek {
             const kneeX = hipX + Math.sin(kneeAngle) * legLength * 0.55;
             const kneeY = hipY + Math.cos(kneeAngle) * legLength * 0.55;
 
-            ctx.strokeStyle = this.pantsColor;
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(hipX, hipY);
-            ctx.lineTo(kneeX, kneeY);
-            ctx.stroke();
+            if (this.customSprites['leg']) {
+                this.renderCustomPart(ctx, 'leg', (hipX + kneeX) / 2, (hipY + kneeY) / 2, 4, legLength * 0.55, kneeAngle);
+            } else {
+                ctx.strokeStyle = this.pantsColor;
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(hipX, hipY);
+                ctx.lineTo(kneeX, kneeY);
+                ctx.stroke();
+            }
 
             // Shin
             const footX = kneeX + Math.sin(kneeAngle + footAngle) * legLength * 0.5;
             const footY = kneeY + Math.cos(kneeAngle + footAngle) * legLength * 0.5;
 
-            ctx.strokeStyle = this.pantsColor;
-            ctx.lineWidth = 3.5;
-            ctx.beginPath();
-            ctx.moveTo(kneeX, kneeY);
-            ctx.lineTo(footX, footY);
-            ctx.stroke();
+            if (this.customSprites['leg']) {
+                this.renderCustomPart(ctx, 'leg', (kneeX + footX) / 2, (kneeY + footY) / 2, 3.5, legLength * 0.5, kneeAngle + footAngle);
+            } else {
+                ctx.strokeStyle = this.pantsColor;
+                ctx.lineWidth = 3.5;
+                ctx.beginPath();
+                ctx.moveTo(kneeX, kneeY);
+                ctx.lineTo(footX, footY);
+                ctx.stroke();
+            }
 
             // Boot
-            ctx.fillStyle = this.bootColor;
-            ctx.beginPath();
-            ctx.arc(footX, footY, 2.5, 0, Math.PI * 2);
-            ctx.fill();
+            if (this.customSprites['boot']) {
+                this.renderCustomPart(ctx, 'boot', footX, footY, 6, 6, 0);
+            } else {
+                ctx.fillStyle = this.bootColor;
+                ctx.beginPath();
+                ctx.arc(footX, footY, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
     }
 
@@ -196,21 +223,24 @@ export class Gostek {
         const handY = shoulderY + Math.sin(localAim) * armLength;
 
         // Arm segments
-        ctx.strokeStyle = this.skinColor;
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-
-        // Upper arm
-        ctx.beginPath();
-        ctx.moveTo(shoulderX, shoulderY);
-        ctx.lineTo(elbowX, elbowY);
-        ctx.stroke();
-
-        // Forearm
-        ctx.beginPath();
-        ctx.moveTo(elbowX, elbowY);
-        ctx.lineTo(handX, handY);
-        ctx.stroke();
+        if (this.customSprites['arm']) {
+            this.renderCustomPart(ctx, 'arm', (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 4, armLength * 0.5, elbowAngle - Math.PI / 2);
+            this.renderCustomPart(ctx, 'arm', (elbowX + handX) / 2, (elbowY + handY) / 2, 4, armLength * 0.5, localAim - Math.PI / 2);
+        } else {
+            ctx.strokeStyle = this.skinColor;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            // Upper arm
+            ctx.beginPath();
+            ctx.moveTo(shoulderX, shoulderY);
+            ctx.lineTo(elbowX, elbowY);
+            ctx.stroke();
+            // Forearm
+            ctx.beginPath();
+            ctx.moveTo(elbowX, elbowY);
+            ctx.lineTo(handX, handY);
+            ctx.stroke();
+        }
 
         // ========== WEAPON ==========
         this.renderWeapon(ctx, handX, handY, aimAngle, dir, weaponName);
@@ -220,14 +250,18 @@ export class Gostek {
         const backHandX = shoulderX + Math.cos(backArmAngle) * armLength * 0.85 * dir;
         const backHandY = shoulderY + Math.sin(backArmAngle) * armLength * 0.85;
 
-        ctx.strokeStyle = this.skinColor;
-        ctx.lineWidth = 2.5;
-        ctx.globalAlpha = 0.7;
-        ctx.beginPath();
-        ctx.moveTo(shoulderX, shoulderY);
-        ctx.lineTo(backHandX, backHandY);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+        if (this.customSprites['arm']) {
+            this.renderCustomPart(ctx, 'arm', (shoulderX + backHandX) / 2, (shoulderY + backHandY) / 2, 3, armLength * 0.85, backArmAngle - Math.PI / 2);
+        } else {
+            ctx.strokeStyle = this.skinColor;
+            ctx.lineWidth = 2.5;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(shoulderX, shoulderY);
+            ctx.lineTo(backHandX, backHandY);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
     }
 
     private renderWeapon(
@@ -269,17 +303,23 @@ export class Gostek {
             color = '#5a4a3a';
         }
 
-        // Gun body
-        ctx.fillStyle = color;
-        ctx.fillRect(-2, -height / 2, length, height);
+        // Weapon body
+        const custom = this.customSprites[`weapon_${weaponName}`];
+        if (custom) {
+            this.renderCustomPart(ctx, `weapon_${weaponName}`, length / 2, 0, length + 4, height + 8, 0);
+        } else {
+            // Gun body
+            ctx.fillStyle = color;
+            ctx.fillRect(-2, -height / 2, length, height);
 
-        // Handle/grip
-        ctx.fillStyle = handleColor;
-        ctx.fillRect(-1, height / 2, 4, 5);
+            // Handle/grip
+            ctx.fillStyle = handleColor;
+            ctx.fillRect(-1, height / 2, 4, 5);
 
-        // Barrel tip
-        ctx.fillStyle = '#333';
-        ctx.fillRect(length - 4, -height / 2 - 0.5, 4, height + 1);
+            // Barrel tip
+            ctx.fillStyle = '#333';
+            ctx.fillRect(length - 4, -height / 2 - 0.5, 4, height + 1);
+        }
 
         ctx.restore();
     }
@@ -302,5 +342,27 @@ export class Gostek {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(x, y, barWidth, barHeight);
+    }
+
+    private _imgCache: Record<string, HTMLImageElement> = {};
+    private renderCustomPart(ctx: CanvasRenderingContext2D, part: string, x: number, y: number, w: number, h: number, angle: number): void {
+        const dataUrl = this.customSprites[part];
+        if (!dataUrl) return;
+
+        if (!this._imgCache[dataUrl]) {
+            const img = new Image();
+            img.src = dataUrl;
+            this._imgCache[dataUrl] = img;
+        }
+
+        const img = this._imgCache[dataUrl];
+        if (!img.complete) return;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
     }
 }
