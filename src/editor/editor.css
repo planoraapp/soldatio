@@ -97,6 +97,44 @@ body,
   gap: 4px;
 }
 
+.history-controls {
+  display: flex;
+  gap: 6px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  height: 28px;
+  align-items: center;
+}
+
+.btn-history {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.btn-history:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--accent-lt);
+  transform: translateY(-1px);
+}
+
+.btn-history:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
 .main-tab {
   padding: 6px 14px;
   border: 1px solid transparent;

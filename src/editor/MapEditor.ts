@@ -125,10 +125,16 @@ export class MapEditor {
     testMode = false;
     testViewMode: 'VISUAL' | 'PHYSICS' = 'VISUAL';
 
+    // History
+    private undoStack: string[] = [];
+    private redoStack: string[] = [];
+    private _isRestoringHistory = false;
+
     // Callbacks
     onStatusUpdate: ((msg: string) => void) | null = null;
     onSelectionChange: ((poly: EditPolygon | null) => void) | null = null;
     onCountChange: (() => void) | null = null;
+    onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 
     constructor(canvas: HTMLCanvasElement, imageLoader: ImageLoader) {
         this.canvas = canvas;
@@ -263,6 +269,19 @@ export class MapEditor {
             if (grabbed) return;
         }
 
+        // Before any tool action that mutates state, save history
+        if (!['SELECT', 'PAN'].includes(this.tool)) {
+            this.saveHistory();
+        } else if (this.tool === 'SELECT') {
+            // Check if we are about to drag something
+            const selPoly = this.polygons.find(p => p.id === this.selectedId);
+            const isVertex = selPoly && this.findVertexAt(selPoly, w.x, w.y) !== -1;
+            const isPoly = selPoly && this.pointInPoly(w, selPoly.vertices);
+            if (isVertex || isPoly) {
+                this.saveHistory();
+            }
+        }
+
         switch (this.tool) {
             case 'SELECT': this.startSelect(sx, sy, w); break;
             case 'DRAW': this.addDrawVertex(w); break;
@@ -365,6 +384,8 @@ export class MapEditor {
 
     private closePoly(): void {
         if (this.drawVerts.length < 3) return;
+        // History already saved on first vertex add or similar? 
+        // Better save right before finalizing if not already saved.
         const poly: EditPolygon = {
             id: crypto.randomUUID(),
             vertices: [...this.drawVerts],
@@ -475,10 +496,21 @@ export class MapEditor {
         }
         if (e.code === 'Enter' && this.tool === 'DRAW') { this.closePoly(); }
         if ((e.code === 'Delete' || e.code === 'Backspace') && this.selectedId) {
+            this.saveHistory();
             this.polygons = this.polygons.filter(p => p.id !== this.selectedId);
             this.selectedId = null;
             this.onSelectionChange?.(null);
             this.onCountChange?.();
+        }
+
+        // Ctrl+Z / Ctrl+Y
+        if (e.ctrlKey && e.code === 'KeyZ') {
+            e.preventDefault();
+            this.undo();
+        }
+        if (e.ctrlKey && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) {
+            e.preventDefault();
+            this.redo();
         }
     }
 
@@ -546,12 +578,17 @@ export class MapEditor {
             }
             ctx.globalAlpha = 1;
 
-            // Selection outline when ERASE tool hovers (visual hint)
-            ctx.strokeStyle = 'rgba(110,231,183,0.5)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.strokeRect(sx, sy, dw, dh);
-            ctx.setLineDash([]);
+            // Show selection border ONLY if selected or using specific tool
+            const isHovered = this.mouseScreenX >= sx && this.mouseScreenX <= sx + dw &&
+                this.mouseScreenY >= sy && this.mouseScreenY <= sy + dh;
+
+            if (sp.id === this.selectedId || (isHovered && (this.tool === 'ERASE' || this.tool === 'SELECT'))) {
+                ctx.strokeStyle = '#6ee7b7';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.strokeRect(sx, sy, dw, dh);
+                ctx.setLineDash([]);
+            }
             ctx.restore();
         }
     }
@@ -578,10 +615,10 @@ export class MapEditor {
         ctx.drawImage(img, s.sx, s.sy, s.sw, s.sh, sx, sy, dw, dh);
         ctx.globalAlpha = 1;
 
-        // Dashed border
-        ctx.strokeStyle = '#6ee7b7';
+        // Dashed border (Ghost indicates where it will be placed)
+        ctx.strokeStyle = 'rgba(110,231,183,1)';
         ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
+        ctx.setLineDash([6, 4]);
         ctx.strokeRect(sx, sy, dw, dh);
         ctx.setLineDash([]);
 
@@ -864,8 +901,11 @@ export class MapEditor {
         };
     }
 
-    /** Load map data into the editor */
-    loadMapData(data: MapData): void {
+    /** Load map data into the editor (internal version doesn't touch history) */
+    loadMapData(data: MapData, skipHistory = false): void {
+        if (!skipHistory && !this._isRestoringHistory) {
+            this.saveHistory();
+        }
         this.clearAll();
         this.mapName = data.name;
         this.bounds = { ...data.bounds };
@@ -886,6 +926,47 @@ export class MapEditor {
             this.pickups.push({ id: crypto.randomUUID(), x: pk.x, y: pk.y, type: pk.type as any, timer: pk.timer });
         }
         this.onCountChange?.();
+    }
+
+    // ──── History Implementation ────
+    saveHistory(): void {
+        if (this._isRestoringHistory) return;
+        const state = JSON.stringify(this.toMapData());
+        // Only push if different from last
+        if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === state) return;
+
+        this.undoStack.push(state);
+        this.redoStack = []; // Clear redo on new action
+        if (this.undoStack.length > 50) this.undoStack.shift(); // Limit history
+        this.onHistoryChange?.(this.undoStack.length > 0, false);
+    }
+
+    undo(): void {
+        if (this.undoStack.length === 0) return;
+
+        // Save current state to redo stack
+        const currentState = JSON.stringify(this.toMapData());
+        this.redoStack.push(currentState);
+
+        const prevState = this.undoStack.pop()!;
+        this._isRestoringHistory = true;
+        this.loadMapData(JSON.parse(prevState), true);
+        this._isRestoringHistory = false;
+
+        this.onHistoryChange?.(this.undoStack.length > 0, true);
+    }
+
+    redo(): void {
+        if (this.redoStack.length === 0) return;
+
+        const nextState = this.redoStack.pop()!;
+        this.undoStack.push(JSON.stringify(this.toMapData()));
+
+        this._isRestoringHistory = true;
+        this.loadMapData(JSON.parse(nextState), true);
+        this._isRestoringHistory = false;
+
+        this.onHistoryChange?.(true, this.redoStack.length > 0);
     }
 
     // ──── Brush tool ────

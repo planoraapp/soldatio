@@ -38,6 +38,17 @@ mapEditor.onCountChange = () => {
 };
 mapEditor.onSelectionChange = (poly) => updatePropertiesPanel(poly);
 
+// Undo / Redo
+const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
+const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement;
+btnUndo?.addEventListener('click', () => mapEditor.undo());
+btnRedo?.addEventListener('click', () => mapEditor.redo());
+
+mapEditor.onHistoryChange = (canUndo, canRedo) => {
+    if (btnUndo) btnUndo.disabled = !canUndo;
+    if (btnRedo) btnRedo.disabled = !canRedo;
+};
+
 // ─────────────────────────────────────────────
 // Asset Editor setup
 // ─────────────────────────────────────────────
