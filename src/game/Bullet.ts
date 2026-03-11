@@ -39,7 +39,8 @@ export class BulletManager {
 
     update(
         polygons: MapPolygon[],
-        players: { pos: Vector2; radius: number; health: number; die: (p: any) => void }[]
+        players: { pos: Vector2; radius: number; health: number; die: (p: any) => void }[],
+        allPlayers?: any[]
     ): { hitBullets: BulletData[]; hitPositions: Vector2[]; hitNormals: Vector2[]; hitPlayers: any[] } {
         const hitBullets: BulletData[] = [];
         const hitPositions: Vector2[] = [];
@@ -55,35 +56,47 @@ export class BulletManager {
             const moveDir = b.vel.normalize();
             const moveDist = b.vel.length();
 
-            // 1. Check for wall hits
-            const hit = raycastMap(b.pos, moveDir, moveDist, polygons);
+            // 1. Check for wall hits using raycast
+            const hit = raycastMap(oldPos, moveDir, moveDist, polygons);
 
             // 2. Check for player hits
             let playerHit = null;
             let playerHitDist = hit.hit ? hit.distance : moveDist;
 
+            // Proper Capsule/Line Segment vs Circle collision mapping
             for (const p of players) {
-                // Simplified circle hit check along the bullet path
-                // For better accuracy, we should use ray-vs-circle
-                const toPlayer = p.pos.sub(b.pos);
+                // Vector from oldPos to player
+                const toPlayer = p.pos.sub(oldPos);
+                
+                // Projection of player center onto the bullet's travel vector (distance along line)
                 const projection = toPlayer.dot(moveDir);
 
-                if (projection > 0 && projection < playerHitDist) {
-                    const closestPoint = b.pos.add(moveDir.scale(projection));
-                    const distToPlayerLine = closestPoint.distance(p.pos);
+                // Find the closest point on the line segment from bullet start to max travel dist
+                const t = Math.max(0, Math.min(moveDist, projection));
+                const closestPoint = oldPos.add(moveDir.scale(t));
+                
+                // Calc distance from the closest point to the player
+                const distToPlayerLine = closestPoint.distance(p.pos);
 
-                    if (distToPlayerLine < p.radius + 2) { // +2 for bullet thickness
-                        playerHit = p;
-                        playerHitDist = projection;
-                    }
+                // We only care if we actually hit them BEFORE hitting a wall 
+                // and if the hit happens within their radius (with a tiny buffer for thick bullets)
+                if (distToPlayerLine <= p.radius + 3 && projection <= playerHitDist + p.radius) {
+                    playerHit = p;
+                    
+                    // Keep the distance recorded so the next player check only beats it if it's closer
+                    playerHitDist = Math.max(0, projection - p.radius);
                 }
             }
 
             if (playerHit) {
+                // We hit a player before hitting the wall
                 hitBullets.push(b);
-                hitPositions.push(b.pos.add(moveDir.scale(playerHitDist)));
+                hitPositions.push(oldPos.add(moveDir.scale(playerHitDist)));
                 hitNormals.push(moveDir.scale(-1));
                 hitPlayers.push({ player: playerHit, damage: b.damage });
+                
+                // update bullet pos conceptually for any later logic but skip adding to alive
+                b.pos.addMut(b.vel.normalize().scale(playerHitDist));
                 continue;
             }
 
@@ -91,11 +104,12 @@ export class BulletManager {
                 hitBullets.push(b);
                 hitPositions.push(hit.point);
                 hitNormals.push(hit.normal);
+                
+                b.pos = hit.point.clone();
                 continue;
             }
 
-
-            // Move bullet
+            // Move bullet normally
             b.pos.addMut(b.vel);
             b.lifetime--;
 
