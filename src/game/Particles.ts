@@ -1,4 +1,18 @@
 import { Vector2 } from '../engine/Vector2';
+import { 
+    Scene, 
+    Points, 
+    BufferGeometry, 
+    PointsMaterial, 
+    Float32BufferAttribute, 
+    Color, 
+    TextureLoader, 
+    AdditiveBlending,
+    Sprite,
+    SpriteMaterial,
+    Texture
+} from 'three';
+import { SpriteDef, PARTICLE_ANIMATIONS, getImage } from '../engine/SpriteSheet';
 
 export interface Particle {
     pos: Vector2;
@@ -14,6 +28,8 @@ export interface Particle {
     persistent: boolean;
     /** Set to true once a persistent particle has landed */
     stuck: boolean;
+    /** If true, add random lateral jitter each frame (for grainy/ascii effects) */
+    jitter?: boolean;
     /** Image to render (optional) */
     image?: HTMLImageElement;
 }
@@ -24,21 +40,66 @@ export interface Particle {
  */
 export class ParticleSystem {
     particles: Particle[] = [];
-    private smokeImg: HTMLImageElement | null = null;
+    private scene: Scene | null = null;
+    
+    // Low-level point cloud for mass debris
+    private points: Points;
+    private geometry: BufferGeometry;
+    private material: PointsMaterial;
+
+    // Sprite pool for animated effects (explosions, etc)
+    private spritePool: Sprite[] = [];
+    private activeSprites: { sprite: Sprite; defs: SpriteDef[]; age: number; maxAge: number }[] = [];
+
+    private readonly MAX_PARTICLES = 2000;
 
     /** Offscreen canvas for persistent blood/decals */
     private persistCanvas: HTMLCanvasElement;
     private persistCtx: CanvasRenderingContext2D;
     persistentDirty: boolean = false;
 
-    constructor(width: number, height: number) {
+    constructor(width: number, height: number, scene?: Scene) {
+        this.scene = scene || null;
+
+        this.geometry = new BufferGeometry();
+        const positions = new Float32Array(this.MAX_PARTICLES * 3);
+        const colors = new Float32Array(this.MAX_PARTICLES * 3);
+        const sizes = new Float32Array(this.MAX_PARTICLES);
+
+        this.geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+        this.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+        this.geometry.setAttribute('size', new Float32BufferAttribute(sizes, 1));
+
+        this.material = new PointsMaterial({
+            size: 1,
+            vertexColors: true,
+            transparent: true,
+            blending: AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: false // Keep pixel-consistent sizes
+        });
+
+        this.points = new Points(this.geometry, this.material);
+        this.points.renderOrder = 100; // In front of most things
+        if (this.scene) this.scene.add(this.points);
+
+        // Persistent decals (Canal 2D fallback or skip for now)
         this.persistCanvas = document.createElement('canvas');
         this.persistCanvas.width = width;
         this.persistCanvas.height = height;
         this.persistCtx = this.persistCanvas.getContext('2d')!;
 
-        this.smokeImg = new Image();
-        this.smokeImg.src = '/smoke1.png';
+        // Pre-create sprite pool
+        const sheetImg = getImage('/particles.png');
+        if (sheetImg && this.scene) {
+            for (let i = 0; i < 50; i++) {
+                const mat = new SpriteMaterial({ transparent: true, opacity: 0 });
+                const s = new Sprite(mat);
+                s.visible = false;
+                this.scene.add(s);
+                this.spritePool.push(s);
+            }
+        }
     }
 
     resizePersist(width: number, height: number): void {
@@ -53,6 +114,7 @@ export class ParticleSystem {
 
     /** Spawn a burst of blood particles */
     spawnBlood(pos: Vector2, direction: Vector2, count: number): void {
+        this.spawnAnimated(pos, 'blood', 48, 16);
         for (let i = 0; i < count; i++) {
             const angle = direction.angle() + (Math.random() - 0.5) * 1.5;
             const speed = 2 + Math.random() * 5;
@@ -72,28 +134,29 @@ export class ParticleSystem {
         }
     }
 
-    /** Spawn jetpack smoke */
+    /** Spawn grainy digital smoke cloud (ASCII/Pixel Style) */
     spawnSmoke(pos: Vector2, amount: number = 3): void {
         for (let i = 0; i < amount; i++) {
             const vel = new Vector2((Math.random() - 0.5) * 2, 1 + Math.random() * 2);
             this.particles.push({
                 pos: pos.clone(),
                 vel,
-                gravity: -0.02,
-                lifetime: 15 + Math.random() * 15,
-                maxLifetime: 30,
-                color: '#888',
-                size: 3 + Math.random() * 5,
-                round: true,
+                gravity: -0.01,
+                lifetime: 20 + Math.random() * 20,
+                maxLifetime: 40,
+                color: Math.random() > 0.5 ? '#999' : '#ccc',
+                size: 1.5 + Math.random() * 2.5, // Smaller grainy pixels
+                round: false, // Strict squares
                 persistent: false,
                 stuck: false,
-                image: this.smokeImg?.complete ? this.smokeImg : undefined
+                jitter: true // digital flicker
             });
         }
     }
 
     /** Spawn large explosion (orange/red/smoke) */
     spawnExplosion(pos: Vector2): void {
+        this.spawnAnimated(pos, 'explosion', 128, 24);
         // Fire particles
         for (let i = 0; i < 30; i++) {
             const angle = Math.random() * Math.PI * 2;
@@ -130,6 +193,11 @@ export class ParticleSystem {
         }
     }
 
+    spawnShell(pos: Vector2, facingDir: number): void {
+        // shells jump out and fall
+        this.spawnAnimated(pos, 'shell', 12, 60); 
+    }
+
     /** Spawn muzzle flash */
     spawnMuzzleFlash(pos: Vector2, direction: Vector2, color: string): void {
         for (let i = 0; i < 5; i++) {
@@ -148,6 +216,27 @@ export class ParticleSystem {
                 stuck: false,
             });
         }
+    }
+
+    /** Spawn grainy pixel jet thrust from feet (ASCII/Pixel Style) */
+    spawnJetpackSmoke(pos: Vector2, facingDir: number): void {
+        // High contrast digital plasma palette
+        const colors = ['#00ffff', '#ffffff', '#ffaa00', '#ff00ff'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        
+        this.particles.push({
+            pos: new Vector2(pos.x - (facingDir * 6), pos.y + 18),
+            vel: new Vector2((Math.random() - 0.5) * 3, 10 + Math.random() * 8), // Hyper thrust DOWN
+            gravity: 0.15, 
+            lifetime: 6 + Math.random() * 10,
+            maxLifetime: 16,
+            color,
+            size: 1.5 + Math.random() * 2, // Tiny grainy pixels
+            round: false, // FORCE SQUARES
+            persistent: false,
+            stuck: false,
+            jitter: true // Activate grainy flicker
+        });
     }
 
     /** Spawn wall impact sparks */
@@ -172,6 +261,9 @@ export class ParticleSystem {
 
     /** Spawn material-specific impact effects (called when a bullet hits a surface) */
     spawnMaterialImpact(pos: Vector2, normal: Vector2, material: string): void {
+        const type = (material === 'metal' || material === 'concrete' || material === 'rock') ? 'spark' : 'dust';
+        this.spawnAnimated(pos, type, 32, 12);
+        
         const effects = {
             dirt: { color1: '#8B7355', color2: '#6B5339', sparks: 0, dust: 5 },
             rock: { color1: '#999', color2: '#777', sparks: 3, dust: 2 },
@@ -247,58 +339,135 @@ export class ParticleSystem {
 
     update(): void {
         const alive: Particle[] = [];
+        const posAttr = this.geometry.attributes.position;
+        const colorAttr = this.geometry.attributes.color;
+        const sizeAttr = this.geometry.attributes.size;
 
-        for (const p of this.particles) {
-            if (p.stuck) continue;
+        // 1. Update Points
+        let i = 0;
+        for (const pt of this.particles) {
+            if (pt.stuck) continue;
 
-            p.vel.y += p.gravity;
-            p.pos.addMut(p.vel);
-            p.vel.scaleMut(0.97); // Air friction
-            p.lifetime--;
+            pt.vel.y += pt.gravity;
+            pt.pos.addMut(pt.vel);
+            pt.vel.scaleMut(0.97);
 
-            if (p.lifetime <= 0) {
-                // If persistent, draw onto the persist canvas and discard
-                if (p.persistent) {
-                    this.persistCtx.fillStyle = p.color;
-                    this.persistCtx.globalAlpha = 0.35; // Lower opacity for old blood
-                    this.persistCtx.beginPath();
-                    this.persistCtx.arc(p.pos.x, p.pos.y, p.size * 0.7, 0, Math.PI * 2);
-                    this.persistCtx.fill();
-                    this.persistCtx.globalAlpha = 1;
-                    this.persistentDirty = true;
-                }
+            // Grainy Jitter Effect
+            if (pt.jitter) {
+                pt.pos.x += (Math.random() - 0.5) * 5;
+            }
+
+            pt.lifetime--;
+
+            if (pt.lifetime <= 0) continue;
+
+            if (i < this.MAX_PARTICLES) {
+                posAttr.setXYZ(i, pt.pos.x, -pt.pos.y, 61);
+                const c = new Color(pt.color);
+                colorAttr.setXYZ(i, c.r, c.g, c.b);
+                sizeAttr.setX(i, pt.size);
+                i++;
+            }
+            alive.push(pt);
+        }
+        for (let j = i; j < this.MAX_PARTICLES; j++) sizeAttr.setX(j, 0);
+        posAttr.needsUpdate = true;
+        colorAttr.needsUpdate = true;
+        sizeAttr.needsUpdate = true;
+        this.particles = alive;
+
+        // 2. Update Animated Sprites
+        const stillActive = [];
+        for (const entry of this.activeSprites) {
+            entry.age++;
+            if (entry.age >= entry.maxAge) {
+                entry.sprite.visible = false;
+                this.spritePool.push(entry.sprite);
                 continue;
             }
-            alive.push(p);
-        }
 
-        this.particles = alive;
+            // Update frame with correct UV mapping for 928x1152 sheet (4x5 cells)
+            const frameIdx = Math.floor((entry.age / entry.maxAge) * entry.defs.length);
+            const def = entry.defs[frameIdx];
+            if (def) {
+                const tex = entry.sprite.material.map || new Texture(getImage(def.sheet)!);
+                tex.repeat.set(1/4, 1/5); // 4 columns, 5 rows
+                // UV offset: SX / TextureWidth, SY / TextureHeight
+                tex.offset.set(def.sx / 928, 1 - (def.sy / 1152) - 1/5);
+                tex.needsUpdate = true;
+                entry.sprite.material.map = tex;
+                entry.sprite.material.needsUpdate = true;
+            }
+            stillActive.push(entry);
+        }
+        this.activeSprites = stillActive;
     }
 
+    spawnAnimated(pos: Vector2, animType: keyof typeof PARTICLE_ANIMATIONS, size = 16, life = 12): void {
+        let s = this.spritePool.pop();
+        
+        // Populate if empty
+        if (!s && this.scene) {
+            const mat = new SpriteMaterial({ transparent: true, opacity: 0 });
+            s = new Sprite(mat);
+            this.scene.add(s);
+        }
+
+        if (!s) return;
+
+        s.visible = true;
+        s.position.set(pos.x, -pos.y, 60);
+        s.scale.set(size, size, 1);
+        s.material.opacity = 1;
+
+        this.activeSprites.push({
+            sprite: s,
+            defs: PARTICLE_ANIMATIONS[animType],
+            age: 0,
+            maxAge: life
+        });
+    }
     /** Render persistent decals (blood on map) */
     renderPersistent(ctx: CanvasRenderingContext2D): void {
         ctx.drawImage(this.persistCanvas, 0, 0);
     }
 
-    /** Render active particles */
-    render(ctx: CanvasRenderingContext2D): void {
+    /** Render active particles with proper camera projection */
+    render(ctx: CanvasRenderingContext2D, camX: number, camY: number, zoom: number): void {
+        ctx.save();
+        ctx.shadowBlur = 0; // Disable any inherited blurring
+        ctx.imageSmoothingEnabled = false; // Forced pixel look
+
         for (const p of this.particles) {
             if (p.stuck) continue;
+            
+            const sx = (p.pos.x - camX) * zoom;
+            const sy = (p.pos.y - camY) * zoom;
+            const size = p.size * zoom;
+
             const alpha = Math.min(1, p.lifetime / (p.maxLifetime * 0.3));
             ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
 
+            // SPECIAL CASE: Grainy/ASCII particles (Jetpack, LAW trail)
+            if (p.jitter) {
+                const pixelSize = Math.max(1, size * 0.8);
+                ctx.fillRect(sx - pixelSize / 2, sy - pixelSize / 2, pixelSize, pixelSize);
+                continue;
+            }
+
             if (p.image) {
-                const s = p.size * 2;
-                ctx.drawImage(p.image, p.pos.x - s / 2, p.pos.y - s / 2, s, s);
+                const s = size * 2;
+                ctx.drawImage(p.image, sx - s / 2, sy - s / 2, s, s);
             } else if (p.round) {
                 ctx.beginPath();
-                ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI * 2);
+                ctx.arc(sx, sy, size, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                ctx.fillRect(p.pos.x - p.size / 2, p.pos.y - p.size / 2, p.size, p.size);
+                ctx.fillRect(sx - size / 2, sy - size / 2, size, size);
             }
         }
         ctx.globalAlpha = 1;
+        ctx.restore();
     }
 }

@@ -8,6 +8,14 @@ import { BulletManager } from './Bullet';
 import { Gostek } from './Gostek';
 import { ParticleSystem } from './Particles';
 import { GrenadeManager } from './Grenade';
+import { ThreeSoldier } from './ThreeSoldier';
+import { AudioManager } from '../engine/AudioManager';
+
+export enum Team {
+    NONE = 0,
+    ALPHA = 1, // Blue
+    BRAVO = 2  // Red
+}
 
 const GRAVITY = 0.35;
 const GROUND_ACCEL = 0.8;
@@ -24,6 +32,14 @@ const PLAYER_RADIUS = 10;
 const MAX_HEALTH = 150;
 
 export class Player {
+    public readonly id: string = Math.random().toString(36).substring(2, 9);
+    public name: string = 'GUEST_AGENT';
+    public team: Team = Team.NONE;
+    public kills: number = 0;
+    public deaths: number = 0;
+    public score: number = 0;
+    public hasFlag: boolean = false;
+    
     pos: Vector2;
     prevPos: Vector2;
     vel: Vector2 = Vector2.zero();
@@ -55,6 +71,9 @@ export class Player {
 
     /** Aim angle toward mouse (world-space radians) */
     aimAngle: number = 0;
+    visualAimAngle: number = 0;
+    private aimSway: number = 0;
+    private aimInertia: number = 0.2; // 0 (fast) to 1 (slow)
 
     /** Weapons Slots (Soldat style) */
     primaryWeaponIndex: number = 2; // e.g. AK-74
@@ -84,6 +103,7 @@ export class Player {
     spawnProvider: () => Vector2 = () => new Vector2(400, 200);
 
     gostek: Gostek = new Gostek();
+    mesh: ThreeSoldier = new ThreeSoldier();
 
     constructor(spawnPos: Vector2) {
         this.pos = spawnPos.clone();
@@ -130,7 +150,8 @@ export class Player {
         bullets: BulletManager,
         grenades: GrenadeManager,
         particles: ParticleSystem,
-        players: Player[]
+        players: Player[],
+        audio: AudioManager
     ): void {
         if (this.isDead) {
             this.respawnTimer--;
@@ -142,11 +163,26 @@ export class Player {
 
         if (this.grenadeWaitTimer > 0) this.grenadeWaitTimer--;
 
-        // === AIM ===
-        this.aimAngle = Math.atan2(
+        // === AIM WITH INERTIA & SWAY ===
+        const targetAngle = Math.atan2(
             input.mouseWorldY - this.pos.y,
             input.mouseWorldX - this.pos.x
         );
+        this.aimAngle = targetAngle;
+
+        // Smoothly interpolate visual aim angle (handles PI/-PI wrap)
+        let angleDiff = targetAngle - this.visualAimAngle;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        this.visualAimAngle += angleDiff * (1 - this.aimInertia);
+
+        // Dynamic Sway (呼吸 e movimento)
+        const moveSpeed = this.vel.length();
+        const swayAmount = 0.008 + (moveSpeed * 0.006);
+        this.aimSway += 0.04 + (moveSpeed * 0.04);
+        
+        // Final visual rotation used for the 3D model and projectiles
+        const finalVisualAngle = this.visualAimAngle + Math.sin(this.aimSway) * swayAmount;
         this.facingRight = input.mouseWorldX > this.pos.x;
 
         // === HORIZONTAL MOVEMENT ===
@@ -247,20 +283,21 @@ export class Player {
             }
         }
 
-        // === JETPACK ===
+        // Dense Pixelated Jet Stream (Plasma)
         if (input.mouseRight && this.fuel > 0) {
-            this.vel.y -= JET_POWER;
-            this.fuel -= FUEL_DRAIN;
+            // Apply more force when falling (vel.y > 0)
+            const baseForce = 0.5; // JET_POWER is usually around 0.45
+            const fallingBonus = this.vel.y > 0 ? 3.0 : 1.2; 
+            this.vel.y -= baseForce * fallingBonus;
+            
+            this.fuel -= 0.65;
             if (this.fuel < 0) this.fuel = 0;
 
-            if (this.isBackflipping) {
-                // Cancel backflip if jetpacking? Soldat allowed partials but let's keep it simple
-                // this.isBackflipping = false;
-                // this.radius = PLAYER_RADIUS;
+            // Emission from feet
+            particles.spawnJetpackSmoke(this.pos, this.facingRight ? 1 : -1);
+            if (Math.random() > 0.6) {
+                particles.spawnJetpackSmoke(this.pos, this.facingRight ? 1 : -1);
             }
-
-            // Spawn smoke particles
-            particles.spawnSmoke(this.pos.add(new Vector2(0, this.radius)), 2);
         }
 
 
@@ -335,10 +372,28 @@ export class Player {
         // But let's actually add a proper bounds check if we can get it from the map.
 
         // === WEAPON ===
-        this.updateWeapon(input, bullets, grenades, particles);
+        this.updateWeapon(input, bullets, grenades, particles, audio);
 
         // === GOSTEK ===
         this.gostek.update(this.vel.x, this.isGrounded, input.mouseWorldX, this.pos.x);
+        
+        // === THREE.JS        // Sync 3D mesh — Move to Z=50 to stay in front of terrain
+        this.mesh.position.set(this.pos.x, -this.pos.y, 50);
+        this.mesh.updateAnimation(
+            this.gostek.walkPhase,
+            this.visualAimAngle,
+            this.facingRight ? 1 : -1,
+            this.isCrouching,
+            this.vel.x,
+            this.isRolling || this.isBackflipping,
+            this.isGrounded,
+            this.gostek.impactTimer > 0, // Visual hurt frame
+            this.isDead,
+            this.weapon.name
+        );
+        // Rotation for flips/rolls (only if not handled by sprite sequence)
+        // this.mesh.rotation.z = -(this.backflipRotation + this.rollRotation); 
+        this.mesh.visible = !this.isDead;
     }
 
     /** Keep player within map boundaries */
@@ -359,7 +414,7 @@ export class Player {
     }
 
 
-    private updateWeapon(input: IInput, bullets: BulletManager, grenades: GrenadeManager, particles: ParticleSystem): void {
+    private updateWeapon(input: IInput, bullets: BulletManager, grenades: GrenadeManager, particles: ParticleSystem, audio: AudioManager): void {
         // Slot switching
         if (input.isKeyJustPressed('Digit1')) this.switchSlot(1);
         if (input.isKeyJustPressed('Digit2')) this.switchSlot(2);
@@ -404,7 +459,7 @@ export class Player {
                     this.chargeLevel = Math.min(1, this.chargeLevel + 1 / w.chargeTime!);
                 } else {
                     if (this.isCharging && this.chargeLevel >= 0.95) {
-                        this.fire(bullets, particles);
+                        this.fire(bullets, particles, audio);
                     }
                     this.isCharging = false;
                     this.chargeLevel = 0;
@@ -413,7 +468,7 @@ export class Player {
                 // Normal firing
                 const canFire = isFiringHeld && this.fireTimer <= 0 && this.ammo[this.currentWeaponIndex] > 0;
                 if (canFire) {
-                    this.fire(bullets, particles);
+                    this.fire(bullets, particles, audio);
                 }
             }
 
@@ -447,6 +502,7 @@ export class Player {
     takeDamage(amount: number, particles: ParticleSystem): void {
         if (this.isDead || this.isInvincible) return;
         this.health -= amount;
+        this.gostek.impactTimer = 15; // Set hurt frame
 
         // Spawn blood particles on hit
         particles.spawnBlood(this.pos, new Vector2((Math.random() - 0.5) * 2, -1), 3);
@@ -465,19 +521,34 @@ export class Player {
         }
     }
 
-    private fire(bullets: BulletManager, particles: ParticleSystem): void {
+    private fire(bullets: BulletManager, particles: ParticleSystem, audio: AudioManager): void {
         const w = this.weapon;
         this.fireTimer = Math.round(w.fireRate / 16.67);
         this.ammo[this.currentWeaponIndex]--;
 
+        // Determine sound pan based on player's position relative to center screen
+        // This is simplified but better than 0
+        const pan = (this.pos.x % 1200) / 600 - 1; 
+
+        // Audio profiling
+        switch(w.name) {
+            case 'Barrett M82A1': audio.playSniper(pan); break;
+            case 'Spas-12': audio.playShotgun(pan); break;
+            case 'Desert Eagles': audio.playShootLight(pan); break;
+            case 'XM214 Minigun': audio.playMinigun(pan); break;
+            case 'Ak-74': case 'Steyr AUG': audio.playShootHeavy(pan); break;
+            case 'M72 LAW': case 'M79': audio.playHeavyShot(pan); break;
+            default: audio.playShootLight(pan);
+        }
+
         // Offset spawn to shoulder level (approx -12 from center pos.y)
         const shoulderPos = new Vector2(this.pos.x, this.pos.y - 12);
-        const muzzleOffset = Vector2.fromAngle(this.aimAngle, 22);
+        const muzzleOffset = Vector2.fromAngle(this.visualAimAngle, 22);
         const muzzlePos = shoulderPos.add(muzzleOffset);
 
         for (let i = 0; i < w.bulletCount; i++) {
             const spread = (Math.random() - 0.5) * w.spread * 2;
-            const angle = this.aimAngle + spread;
+            const angle = this.visualAimAngle + spread;
             const bulletVel = Vector2.fromAngle(angle, w.bulletSpeed);
 
             // Inherit player velocity
@@ -489,16 +560,22 @@ export class Player {
                 w.bulletGravity,
                 w.damage,
                 w.bulletLifetime,
-                w.bulletTrailColor
+                w.bulletTrailColor,
+                this.id,
+                w.name === 'M79' || w.name === 'M72 LAW', // Explosive
+                w.name === 'M72 LAW' // isRocket
             );
         }
 
         // Muzzle flash particles
-        particles.spawnMuzzleFlash(muzzlePos, Vector2.fromAngle(this.aimAngle), w.muzzleFlashColor);
+        particles.spawnMuzzleFlash(muzzlePos, Vector2.fromAngle(this.visualAimAngle), w.muzzleFlashColor);
 
         // Recoil: push player in opposite direction of shot
-        const recoilDir = Vector2.fromAngle(this.aimAngle + Math.PI, w.recoilForce);
+        const recoilDir = Vector2.fromAngle(this.visualAimAngle + Math.PI, w.recoilForce);
         this.vel.addMut(recoilDir);
+
+        // Eject shell casing
+        particles.spawnShell(this.pos.clone(), this.facingRight ? 1 : -1);
     }
 
     die(particles: ParticleSystem): void {
@@ -522,26 +599,61 @@ export class Player {
         this.initAmmo();
     }
 
-    render(ctx: CanvasRenderingContext2D): void {
+    refillAmmo(): void {
+        this.ammo[this.currentWeaponIndex] = this.weapon.magazineSize;
+        this.reloading = false;
+        this.reloadTimer = 0;
+    }
+
+    render(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number, zoom: number): void {
         if (this.isDead) return;
 
-        let reloadProgress = 0;
-        if (this.reloading) {
-            const totalReloadFrames = Math.round(this.weapon.reloadTime / 16.67);
-            reloadProgress = 1 - (this.reloadTimer / totalReloadFrames);
+        // Charge Bar (above head)
+        if (this.isCharging && this.chargeLevel > 0) {
+            const barW = 40;
+            const barH = 5;
+            
+            // Convert world pos to screen pos — Correct Projection
+            const sx = (this.pos.x - cameraX) * zoom;
+            const sy = (this.pos.y - 35 - cameraY) * zoom;
+
+            const bx = sx - barW / 2;
+            const by = sy;
+
+            ctx.save();
+            // Background shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
+            
+            // Progress
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bx, by, barW * this.chargeLevel, barH);
+            
+            // Border glow if full charge
+            if (this.chargeLevel >= 0.99) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(bx, by, barW, barH);
+            }
+            ctx.restore();
         }
 
-        this.gostek.render(
-            ctx,
-            this.pos,
-            this.aimAngle,
-            this.isCrouching,
-            this.weapon.name,
-            reloadProgress,
-            this.backflipRotation + this.rollRotation,
-            this.isRolling || this.isBackflipping,
-            this.vel.x
-        );
+        const sx = (this.pos.x - cameraX) * zoom;
+        const sy = (this.pos.y - cameraY) * zoom;
+        
+        ctx.save();
+        ctx.fillStyle = this.team === Team.ALPHA ? '#3498db' : (this.team === Team.BRAVO ? '#e74c3c' : '#fff');
+        ctx.font = '10px "Luckiest Guy", cursive';
+        ctx.textAlign = 'center';
+        
+        // Ensure name isn't too blurry
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        ctx.fillText(this.name, sx, sy - 40 * zoom);
+        ctx.restore();
     }
 
     private performBackflip(dirX: number): void {
@@ -557,6 +669,15 @@ export class Player {
 
         // Hitbox reduction
         this.radius = PLAYER_RADIUS * 0.85;
+    }
+
+    addKill(): void {
+        this.kills++;
+        this.score += 10;
+    }
+
+    addDeath(): void {
+        this.deaths++;
     }
 
     private performRoll(dirX: number): void {

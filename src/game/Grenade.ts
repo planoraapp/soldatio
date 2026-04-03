@@ -2,6 +2,14 @@ import { Vector2 } from '../engine/Vector2';
 import { MapPolygon } from './GameMap';
 import { resolveCircleMapCollision } from './Physics';
 import { ParticleSystem } from './Particles';
+import { 
+    Scene, 
+    Mesh, 
+    SphereGeometry, 
+    MeshPhongMaterial, 
+    Color, 
+    Group 
+} from 'three';
 
 export interface GrenadeData {
     pos: Vector2;
@@ -11,15 +19,35 @@ export interface GrenadeData {
     damage: number;
     ownerTeam: number;
     owner?: any; // The player who threw it
+    mesh: Mesh;
+    rotation: number;
 }
 
 export class GrenadeManager {
     grenades: GrenadeData[] = [];
+    private scene: Scene | Group | null = null;
+
     private readonly GRENADE_RADIUS = 4;
     private readonly DETONATION_TIME = 180; // frames
     private readonly EXPLOSION_RADIUS = 120;
 
+    constructor(scene?: Scene | Group) {
+        if (scene) this.scene = scene;
+    }
+
     spawn(pos: Vector2, vel: Vector2, ownerTeam: number = 0, owner?: any): void {
+        // 3D Mesh
+        const geo = new SphereGeometry(this.GRENADE_RADIUS, 8, 8);
+        const mat = new MeshPhongMaterial({ 
+            color: new Color('#446644'),
+            shininess: 30,
+            emissive: new Color('#000000')
+        });
+        const mesh = new Mesh(geo, mat);
+        mesh.position.set(pos.x, -pos.y, 45); // Z=45 (behind bullets, in front of walls)
+        
+        if (this.scene) this.scene.add(mesh);
+
         this.grenades.push({
             pos: pos.clone(),
             vel: vel.clone(),
@@ -28,6 +56,8 @@ export class GrenadeManager {
             damage: 150,
             ownerTeam,
             owner,
+            mesh,
+            rotation: 0
         });
     }
 
@@ -42,6 +72,7 @@ export class GrenadeManager {
             g.vel.y += 0.25; // Gravity
             g.vel.x *= 0.99; // Air friction
             g.pos.addMut(g.vel);
+            g.rotation += g.vel.x * 0.05;
 
             // Collision with map
             const collisions = resolveCircleMapCollision(g.pos, g.radius, polygons);
@@ -52,6 +83,18 @@ export class GrenadeManager {
                     g.vel.subMut(col.normal.scale(1.6 * dot)); // 1.6 = bounciness
                     g.pos.addMut(col.normal.scale(col.depth));
                 }
+            }
+
+            // Sync 3D Mesh
+            g.mesh.position.set(g.pos.x, -g.pos.y, 45);
+            g.mesh.rotation.z = g.rotation;
+
+            // Pulse effect
+            if (g.timer < 60) {
+                const pulse = (Math.sin(Date.now() * 0.02) * 0.5 + 0.5);
+                const mat = g.mesh.material as MeshPhongMaterial;
+                mat.emissive.setRGB(pulse * 0.5, 0, 0); // Pulse red
+                mat.color.setRGB(0.2 + pulse * 0.6, 0.4, 0.2);
             }
 
             // Contact detonation: burst if touching a player
@@ -75,12 +118,20 @@ export class GrenadeManager {
                 explosions.push(g.pos.clone());
                 particles.spawnExplosion(g.pos);
 
+                // Clean up 3D Mesh
+                if (this.scene) this.scene.remove(g.mesh);
+                g.mesh.geometry.dispose();
+                (g.mesh.material as MeshPhongMaterial).dispose();
+
                 // Damage players
                 for (const p of players) {
                     const dist = p.pos.distance(g.pos);
                     if (dist < this.EXPLOSION_RADIUS) {
                         const falloff = 1 - (dist / this.EXPLOSION_RADIUS);
-                        const damage = g.damage * falloff;
+                        let damage = g.damage * falloff;
+                        if (g.owner && g.owner !== p && g.owner.team === p.team) {
+                            damage *= 0.5; // Dano amigo 50% menor
+                        }
                         p.takeDamage(damage, particles);
 
                         // Knockback
@@ -98,25 +149,7 @@ export class GrenadeManager {
     }
 
     render(ctx: CanvasRenderingContext2D): void {
-        for (const g of this.grenades) {
-            ctx.save();
-            ctx.translate(g.pos.x, g.pos.y);
-
-            // Pulsing red core if near detonation
-            const pulse = g.timer < 60 ? (Math.sin(Date.now() * 0.02) * 0.5 + 0.5) : 0;
-
-            ctx.fillStyle = pulse > 0.5 ? '#ff4444' : '#446644';
-            ctx.beginPath();
-            ctx.arc(0, 0, g.radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Shine
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.beginPath();
-            ctx.arc(-1, -1, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.restore();
-        }
+        // Logic moved to 3D. 
+        // We can keep 2D circles as optional silhouettes or just leave it.
     }
 }

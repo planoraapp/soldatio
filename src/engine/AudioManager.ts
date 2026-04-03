@@ -9,6 +9,9 @@ export class AudioManager {
     private ctx: AudioContext;
     private masterGain: GainNode;
     private _ready = false;
+    private music: HTMLAudioElement | null = null;
+    private currentTrack: string = '';
+    private isMuted: boolean = false;
 
     constructor() {
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -20,10 +23,54 @@ export class AudioManager {
     /** Must be called after the first user gesture (click / keydown). */
     resume(): void {
         if (this.ctx.state === 'suspended') {
-            this.ctx.resume().then(() => { this._ready = true; });
+            this.ctx.resume().then(() => { 
+                this._ready = true; 
+                if (this.music && !this.isMuted) this.music.play().catch(() => {});
+            });
         } else {
             this._ready = true;
+            if (this.music && !this.isMuted) this.music.play().catch(() => {});
         }
+    }
+
+    setMute(mute: boolean): void {
+        this.isMuted = mute;
+        this.masterGain.gain.setValueAtTime(mute ? 0 : 0.35, this.ctx.currentTime);
+        if (this.music) {
+            this.music.muted = mute;
+        }
+    }
+
+    playMusic(path: string, loop: boolean = true): void {
+        if (this.currentTrack === path) return;
+        
+        if (this.music) {
+            this.music.pause();
+        }
+
+        this.music = new Audio(path);
+        this.music.loop = loop;
+        this.music.volume = 0.4;
+        this.music.muted = this.isMuted;
+        this.currentTrack = path;
+
+        if (this._ready && !this.isMuted) {
+            this.music.play().catch(() => {
+                console.log("Music play deferred until interaction");
+            });
+        }
+    }
+
+    stopMusic(): void {
+        if (this.music) {
+            this.music.pause();
+            this.music = null;
+            this.currentTrack = '';
+        }
+    }
+
+    setVolume(val: number): void {
+        this.masterGain.gain.setValueAtTime(val, this.ctx.currentTime);
     }
 
     // =========================================================
@@ -80,6 +127,12 @@ export class AudioManager {
     playReload(pan: number = 0): void {
         this.osc(600, 'square', 0.06, 0.22, pan, -200);
         this.osc(300, 'square', 0.08, 0.18, pan, -100);
+    }
+
+    /** Minigun: high-speed mechanical whine */
+    playMinigun(pan: number = 0): void {
+        this.osc(450 + Math.random() * 100, 'square', 0.05, 0.25, pan, -200);
+        this.noise(0.04, 0.15, pan);
     }
 
     // =========================================================

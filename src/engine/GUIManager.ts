@@ -5,24 +5,22 @@ export type GameUIState = 'MAIN_MENU' | 'PLAYING' | 'PAUSED' | 'NONE';
  */
 export class GUIManager {
     private mainScreen: HTMLElement | null;
-    private pauseScreen: HTMLElement | null;
 
     constructor() {
         this.mainScreen = document.getElementById('main-menu');
-        this.pauseScreen = document.getElementById('pause-menu');
     }
 
     setScreen(state: GameUIState): void {
-        // Hide all first
+        // Hide Main Menu
         this.mainScreen?.classList.add('hidden');
-        this.pauseScreen?.classList.add('hidden');
 
-        // Show requested
+        // Show if requested
         if (state === 'MAIN_MENU') {
             this.mainScreen?.classList.remove('hidden');
-        } else if (state === 'PAUSED') {
-            this.pauseScreen?.classList.remove('hidden');
         }
+        
+        // Note: 'PAUSED' (ESC) and 'G-MENU' are now rendered in HUD.ts 
+        // on the 2D canvas for better visual sync with the game world.
     }
 
     /** Helper for button clicks */

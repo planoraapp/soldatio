@@ -1,6 +1,15 @@
 import { Vector2 } from '../engine/Vector2';
 import { MapPolygon } from './GameMap';
 import { raycastMap } from './Physics';
+import { 
+    Scene, 
+    Group, 
+    Line, 
+    BufferGeometry, 
+    LineBasicMaterial, 
+    Float32BufferAttribute, 
+    Color 
+} from 'three';
 
 export interface BulletData {
     pos: Vector2;
@@ -10,11 +19,19 @@ export interface BulletData {
     lifetime: number;
     maxLifetime: number;
     trailColor: string;
-    ownerTeam: number;
+    ownerId: string;
+    line: Line;
+    explosive: boolean;
+    isRocket: boolean;
 }
 
 export class BulletManager {
     bullets: BulletData[] = [];
+    private scene: Scene | Group | null = null;
+
+    constructor(scene?: Scene | Group) {
+        if (scene) this.scene = scene;
+    }
 
     spawn(
         pos: Vector2,
@@ -23,8 +40,24 @@ export class BulletManager {
         damage: number,
         lifetime: number,
         trailColor: string,
-        ownerTeam: number = 0
+        ownerId: string,
+        explosive: boolean = false,
+        isRocket: boolean = false
     ): void {
+        // Create 3D line for bullet trail
+        const geo = new BufferGeometry();
+        const positions = new Float32Array([0, 0, 0, 0, 0, 0]); // start and end
+        geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+        
+        const mat = new LineBasicMaterial({ 
+            color: new Color(trailColor === '#fff' ? '#ffffff' : trailColor),
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const line = new Line(geo, mat);
+        if (this.scene) this.scene.add(line);
+
         this.bullets.push({
             pos: pos.clone(),
             vel: vel.clone(),
@@ -33,13 +66,17 @@ export class BulletManager {
             lifetime,
             maxLifetime: lifetime,
             trailColor,
-            ownerTeam,
+            ownerId,
+            line,
+            explosive,
+            isRocket
         });
     }
 
     update(
         polygons: MapPolygon[],
-        players: { pos: Vector2; radius: number; health: number; die: (p: any) => void }[],
+        players: { id: string; pos: Vector2; radius: number; health: number; die: (p: any) => void }[],
+        particles?: any,
         allPlayers?: any[]
     ): { hitBullets: BulletData[]; hitPositions: Vector2[]; hitNormals: Vector2[]; hitPlayers: any[] } {
         const hitBullets: BulletData[] = [];
@@ -49,6 +86,10 @@ export class BulletManager {
         const alive: BulletData[] = [];
 
         for (const b of this.bullets) {
+            // Rocket smoke trail FX
+            if (b.isRocket && particles) {
+                particles.spawnSmoke(b.pos.clone(), 1);
+            }
             // Apply gravity
             b.vel.y += b.gravity;
 
@@ -65,6 +106,9 @@ export class BulletManager {
 
             // Proper Capsule/Line Segment vs Circle collision mapping
             for (const p of players) {
+                // Ignore self-collision
+                if (p.id === b.ownerId) continue;
+
                 // Vector from oldPos to player
                 const toPlayer = p.pos.sub(oldPos);
                 
@@ -93,7 +137,7 @@ export class BulletManager {
                 hitBullets.push(b);
                 hitPositions.push(oldPos.add(moveDir.scale(playerHitDist)));
                 hitNormals.push(moveDir.scale(-1));
-                hitPlayers.push({ player: playerHit, damage: b.damage });
+                hitPlayers.push({ player: playerHit, damage: b.damage, bullet: b });
                 
                 // update bullet pos conceptually for any later logic but skip adding to alive
                 b.pos.addMut(b.vel.normalize().scale(playerHitDist));
@@ -113,37 +157,37 @@ export class BulletManager {
             b.pos.addMut(b.vel);
             b.lifetime--;
 
+            // Update 3D Line
+            const tailLen = 1.3;
+            const tailX = b.pos.x - b.vel.x * tailLen;
+            const tailY = b.pos.y - b.vel.y * tailLen;
+            
+            const posAttr = b.line.geometry.attributes.position;
+            posAttr.setXYZ(0, tailX, -tailY, 55); // Z=55 (above players)
+            posAttr.setXYZ(1, b.pos.x, -b.pos.y, 55);
+            posAttr.needsUpdate = true;
+            (b.line.material as LineBasicMaterial).opacity = b.lifetime / b.maxLifetime;
+
             if (b.lifetime > 0) {
                 alive.push(b);
+            } else {
+                // Cleanup
+                if (this.scene) this.scene.remove(b.line);
+                b.line.geometry.dispose();
             }
+        }
+
+        // Cleanup hit bullets
+        for (const hb of hitBullets) {
+            if (this.scene) this.scene.remove(hb.line);
+            hb.line.geometry.dispose();
         }
 
         this.bullets = alive;
         return { hitBullets, hitPositions, hitNormals, hitPlayers };
     }
 
-
     render(ctx: CanvasRenderingContext2D): void {
-        for (const b of this.bullets) {
-            const alpha = b.lifetime / b.maxLifetime;
-            // Short trail: 1.2x velocity length
-            const tailPos = b.pos.sub(b.vel.scale(1.2));
-
-            ctx.beginPath();
-            ctx.moveTo(tailPos.x, tailPos.y);
-            ctx.lineTo(b.pos.x, b.pos.y);
-
-            // If it's a special weapon like LAW, use its color. Otherwise, white trail.
-            const isSpecial = b.trailColor !== '#fff' && b.trailColor !== '#ffffff' && b.trailColor !== 'yellow';
-            ctx.strokeStyle = isSpecial ? b.trailColor : 'rgba(255, 255, 255, 0.4)';
-            ctx.lineWidth = 1.5;
-            ctx.globalAlpha = alpha;
-            ctx.stroke();
-
-            // Bullet head (small points)
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 1;
-            ctx.fillRect(b.pos.x - 0.5, b.pos.y - 0.5, 1, 1);
-        }
+        // Logic moved to 3D
     }
 }

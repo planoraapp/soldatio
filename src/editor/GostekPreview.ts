@@ -1,5 +1,11 @@
-import { Gostek } from '../game/Gostek';
-import { Vector2 } from '../engine/Vector2';
+import { 
+    WebGLRenderer, 
+    Scene, 
+    PerspectiveCamera, 
+    AmbientLight, 
+    Color 
+} from 'three';
+import { ThreeSoldier } from '../game/ThreeSoldier';
 
 export interface GostekConfig {
     skinColor: string;
@@ -10,84 +16,67 @@ export interface GostekConfig {
 }
 
 /**
- * Renders an animated Gostek preview onto a canvas element.
- * Drives its own RAF loop and can be paused.
+ * Three.js based Gostek preview for the Asset Editor.
  */
 export class GostekPreview {
-    private canvas: HTMLCanvasElement;
-    private ctx: CanvasRenderingContext2D;
-    private gostek: Gostek;
+    private renderer: WebGLRenderer;
+    private scene: Scene;
+    private camera: PerspectiveCamera;
+    private soldier: ThreeSoldier;
     private animId: number = 0;
+    
+    private walkPhase: number = 0;
     private walkSpeed: number = 5;
     private aimDeg: number = 0;
     private crouching: boolean = false;
-    private weaponName: string = 'AK-74';
 
     constructor(canvas: HTMLCanvasElement) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d')!;
-        this.gostek = new Gostek();
+        this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
+        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+
+        this.scene = new Scene();
+        this.camera = new PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+        this.camera.position.set(0, 5, 80);
+        this.camera.lookAt(0, 0, 0);
+
+        const ambient = new AmbientLight(0xffffff, 1.0);
+        this.scene.add(ambient);
+
+        this.soldier = new ThreeSoldier('/char_highres.png');
+        this.scene.add(this.soldier);
+
         this.start();
     }
 
-    setConfig(cfg: GostekConfig, customSprites?: Record<string, string>): void {
-        Object.assign(this.gostek, cfg);
-        if (customSprites) {
-            this.gostek.customSprites = customSprites;
-        }
+    setConfig(cfg: GostekConfig, sprites?: any): void {
+        // Future: update colors or textures on the meshes
     }
 
     setWalkSpeed(s: number): void { this.walkSpeed = s; }
     setAimDeg(d: number): void { this.aimDeg = d; }
     setCrouching(c: boolean): void { this.crouching = c; }
-    setWeapon(name: string): void { this.weaponName = name; }
 
     private start(): void {
         const loop = () => {
-            this.render();
+            this.walkPhase += this.walkSpeed * 0.05;
+            const aimRad = (this.aimDeg * Math.PI) / 180;
+            
+            this.soldier.updateAnimation(
+                this.walkPhase,
+                aimRad,
+                1,
+                this.crouching,
+                this.walkSpeed
+            );
+
+            this.renderer.render(this.scene, this.camera);
             this.animId = requestAnimationFrame(loop);
         };
         this.animId = requestAnimationFrame(loop);
     }
 
-    destroy(): void { cancelAnimationFrame(this.animId); }
-
-    private render(): void {
-        const { canvas, ctx } = this;
-        const cx = canvas.width / 2;
-        const cy = canvas.height * 0.62;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Background gradient
-        const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120);
-        grad.addColorStop(0, 'rgba(124,58,237,0.06)');
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Floor line
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(40, cy + 1); ctx.lineTo(canvas.width - 40, cy + 1);
-        ctx.stroke();
-
-        // Advance animation
-        const speed = this.walkSpeed;
-        this.gostek.update(speed, true, cx + 100, cx); // facing right
-
-        const pos = new Vector2(cx, cy);
-        const aimRad = (this.aimDeg * Math.PI) / 180;
-
-        this.gostek.render(
-            ctx,
-            pos,
-            aimRad,
-            this.crouching,
-            this.weaponName,
-            0, 0, false,
-            speed
-        );
+    destroy(): void {
+        cancelAnimationFrame(this.animId);
     }
 }

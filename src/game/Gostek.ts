@@ -1,4 +1,5 @@
 import { Vector2 } from '../engine/Vector2';
+import { PLAYER_ANIMATIONS, drawSprite, SpriteDef } from '../engine/SpriteSheet';
 
 /**
  * Procedural rendering of the Soldat "Gostek" — the soldier character.
@@ -7,18 +8,24 @@ import { Vector2 } from '../engine/Vector2';
 export class Gostek {
     /** Walking animation phase */
     walkPhase: number = 0;
+    impactTimer: number = 0;
     /** Direction the character faces: 1 = right, -1 = left */
     facingDir: number = 1;
+    /** Whether character is on ground */
+    isGrounded: boolean = true;
 
-    /** Body part colors */
+    /** Body part colors (for procedural backup) */
     skinColor: string = '#e8b88a';
     shirtColor: string = '#4a7c4f';
     pantsColor: string = '#3d5c3e';
     bootColor: string = '#2a2a2a';
     headgearColor: string = '#4a7c4f';
 
-    /** Custom sprites for parts (head, torso, arm, leg, boot, headgear) as data URLs */
+    /** Custom sprites for parts (procedural bits) */
     customSprites: Record<string, string> = {};
+
+    /** New animated sprites toggle */
+    useNewSprites: boolean = true;
 
     /**
      * Update animation state.
@@ -28,6 +35,9 @@ export class Gostek {
      * @param playerX player X position
      */
     update(velocityX: number, isGrounded: boolean, mouseWorldX: number, playerX: number): void {
+        this.isGrounded = isGrounded;
+        if (this.impactTimer > 0) this.impactTimer--;
+        
         // Face toward the mouse
         this.facingDir = mouseWorldX > playerX ? 1 : -1;
 
@@ -54,17 +64,24 @@ export class Gostek {
         isRolling: boolean = false,
         velocityX: number = 0 // Lean animation
     ): void {
+        const dir = this.facingDir;
+        const crouchOffset = isRolling ? 12 : (isCrouching ? 4 : 0);
+
+        if (this.useNewSprites) {
+            this.renderSpriteBased(ctx, pos, aimAngle, dir, isRolling, this.isGrounded, velocityX, crouchOffset, weaponName, rotation); 
+            if (reloadProgress > 0 && reloadProgress < 1) {
+                this.renderReloadBar(ctx, crouchOffset, reloadProgress);
+            }
+            return;
+        }
+
         ctx.save();
         ctx.translate(pos.x, pos.y);
 
         // Lean toward running direction; skip lean during roll/backflip (rotation dominates)
         const leanAngle = isRolling ? 0 : velocityX * 0.035;
         ctx.rotate(rotation + leanAngle);
-
-        const dir = this.facingDir;
-        // Ball up more if rolling
-        const crouchOffset = isRolling ? 12 : (isCrouching ? 4 : 0);
-
+        
         // ========== RELOAD BAR ==========
         if (reloadProgress > 0 && reloadProgress < 1) {
             this.renderReloadBar(ctx, crouchOffset, reloadProgress);
@@ -363,6 +380,61 @@ export class Gostek {
         ctx.rotate(angle);
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+    }
+
+    /** New: Animated Sprite Rendering Logic */
+    private renderSpriteBased(
+        ctx: CanvasRenderingContext2D,
+        pos: Vector2,
+        aimAngle: number,
+        dir: number,
+        isRolling: boolean,
+        isGrounded: boolean, // We use a better grounded check here
+        velocityX: number,
+        crouchOffset: number,
+        weaponName: string,
+        rotation: number
+    ): void {
+        // Choose animation sequence
+        let seq: SpriteDef[] = PLAYER_ANIMATIONS.idle;
+        let frameRate = 0.1;
+
+        if (isRolling) {
+            seq = PLAYER_ANIMATIONS.somersault;
+            frameRate = 0.2;
+        } else if (!isGrounded) {
+            seq = PLAYER_ANIMATIONS.jump;
+            frameRate = 0.05;
+        } else if (Math.abs(velocityX) > 0.5) {
+            seq = PLAYER_ANIMATIONS.run;
+            frameRate = Math.abs(velocityX) * 0.08;
+        }
+
+        const frameIndex = Math.floor(this.walkPhase) % seq.length;
+        const sprite = seq[frameIndex];
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(rotation);
+
+        // Character scale (from 32x32px source to game units)
+        // Adjust vertically to feet position
+        const drawSize = 32;
+        const drawX = -drawSize / 2;
+        const drawY = -drawSize + 2; // Offset slightly up to match feet
+
+        drawSprite(ctx, sprite, drawX, drawY, drawSize, drawSize, dir < 0);
+
+        // Weapon Overlay - find hand position based on current frame and direction
+        // In a perfect world, we'd have a map of hand positions for each frame.
+        // For now, we estimate based on the sprite middle-right.
+        if (!isRolling) {
+            const handX = 2 * dir;
+            const handY = -12 + crouchOffset;
+            this.renderWeapon(ctx, handX, handY, aimAngle, dir, weaponName);
+        }
+
         ctx.restore();
     }
 }

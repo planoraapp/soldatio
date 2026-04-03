@@ -95,7 +95,8 @@ export interface SceneryItem {
 
 export enum PickupType {
     HEALTH = 'health',
-    GRENADES = 'grenades'
+    GRENADES = 'grenades',
+    AMMO = 'ammo'
 }
 
 export interface PickupData {
@@ -104,6 +105,10 @@ export interface PickupData {
     type: PickupType;
     /** Current status: 0 available, >0 respawning in frames */
     timer: number;
+    // PHYSICS
+    velY?: number;
+    isFalling?: boolean;
+    hasLanded?: boolean;
 }
 
 export interface SpawnPoint {

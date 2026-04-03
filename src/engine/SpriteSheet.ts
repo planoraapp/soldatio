@@ -28,11 +28,39 @@ export function getImage(src: string): HTMLImageElement | null {
 
 export async function loadAllSprites(): Promise<void> {
     await Promise.all([
-        loadImage('/terrain.png'),
-        loadImage('/char.png'),
-        loadImage('/guns.png'),
-        loadImage('/items.png'),
-        loadImage('/particles.png'),
+        loadImage('/assets/maps/terrain.png'),
+        loadImage('/assets/char/char.png'),
+        loadImage('/assets/weapons/guns.png'),
+        loadImage('/assets/maps/items.png'),
+        loadImage('/assets/maps/particles.png'),
+        loadImage('/assets/maps/tiles_nature.png'),
+        loadImage('/assets/maps/props_industrial.png'),
+        loadImage('/assets/char/idle (1).png'),
+        loadImage('/assets/char/run (1).png'),
+        loadImage('/assets/char/jump (1).png'),
+        loadImage('/assets/char/sommersault (1).png'),
+        loadImage('/assets/char/hurt (1).png'),
+        loadImage('/assets/char/death (1).png'),
+        loadImage('/assets/maps/scenario.png'),
+        loadImage('/assets/weapons/m72law.png'),
+        loadImage('/assets/weapons/m79.png'),
+        loadImage('/assets/weapons/minigun.png'),
+        loadImage('/assets/weapons/rugger77.png'),
+        loadImage('/assets/weapons/hkmp5.png'),
+        loadImage('/assets/weapons/chainsaw.png'),
+        loadImage('/assets/weapons/ak47.png'),
+        loadImage('/assets/weapons/deserteagle.png'),
+        loadImage('/assets/weapons/steyraug.png'),
+        loadImage('/assets/weapons/barret.png'),
+        loadImage('/assets/weapons/fnminimi.png'),
+        loadImage('/assets/weapons/knife.png'),
+        loadImage('/assets/weapons/ussocom.png'),
+        loadImage('/assets/weapons/spas12.png'),
+        loadImage('/assets/maps/medkit.png'),
+        loadImage('/assets/maps/ammo.png'),
+        loadImage('/assets/maps/grenade.png'),
+        loadImage('/assets/maps/sandbag.png'),
+        loadImage('/assets/maps/sign.png'),
     ]);
 }
 
@@ -56,12 +84,17 @@ const T_H = 140;  // texture height per band (leaving bottom margin for separati
 const T_BAND = 170;  // full band height (1024 / 6 ≈ 170)
 
 export const TERRAIN_SPRITES: Record<string, SpriteDef> = {
-    dirt: { sheet: '/terrain.png', sx: 0, sy: 0 * T_BAND + 2, sw: T_W, sh: T_H },
-    grass: { sheet: '/terrain.png', sx: 0, sy: 1 * T_BAND + 2, sw: T_W, sh: T_H },
-    rock: { sheet: '/terrain.png', sx: 0, sy: 2 * T_BAND + 2, sw: T_W, sh: T_H },
-    concrete: { sheet: '/terrain.png', sx: 0, sy: 3 * T_BAND + 2, sw: T_W, sh: T_H },
-    wood: { sheet: '/terrain.png', sx: 0, sy: 4 * T_BAND + 2, sw: T_W, sh: T_H },
-    metal: { sheet: '/terrain.png', sx: 0, sy: 5 * T_BAND + 2, sw: T_W, sh: T_H },
+    // Original Banded Sheet
+    dirt_old: { sheet: '/terrain.png', sx: 0, sy: 0 * T_BAND + 2, sw: T_W, sh: T_H },
+    grass_old: { sheet: '/terrain.png', sx: 0, sy: 1 * T_BAND + 2, sw: T_W, sh: T_H },
+    
+    // New Sideview Tileset (128x128 tiles in 512x512 grid)
+    dirt: { sheet: '/tiles_nature.png', sx: 0, sy: 128, sw: 128, sh: 128 },
+    grass: { sheet: '/tiles_nature.png', sx: 0, sy: 0, sw: 128, sh: 128 },
+    rock: { sheet: '/tiles_nature.png', sx: 128, sy: 0, sw: 128, sh: 128 },
+    concrete: { sheet: '/tiles_nature.png', sx: 256, sy: 0, sw: 128, sh: 128 },
+    wood: { sheet: '/tiles_nature.png', sx: 384, sy: 0, sw: 128, sh: 128 },
+    metal: { sheet: '/tiles_nature.png', sx: 0, sy: 256, sw: 128, sh: 128 },
 };
 
 // ────────────────────────────────────────────────────────────
@@ -100,7 +133,7 @@ const G_RH = Math.round(1024 / 10); // 102
 const G_W = 220;
 
 function gunSprite(row: number): SpriteDef {
-    return { sheet: '/guns.png', sx: 0, sy: row * G_RH, sw: G_W, sh: G_RH };
+    return { sheet: '/assets/weapons/guns.png', sx: 0, sy: row * G_RH, sw: G_W, sh: G_RH };
 }
 
 export const GUN_SPRITES: Record<string, SpriteDef> = {
@@ -138,7 +171,7 @@ const I_CW = Math.round(765 / 3);   // 255
 const I_CH = Math.round(1024 / 4);  // 256
 
 function itemSprite(col: number, row: number): SpriteDef {
-    return { sheet: '/items.png', sx: col * I_CW, sy: row * I_CH, sw: I_CW, sh: I_CH };
+    return { sheet: '/assets/maps/items.png', sx: col * I_CW, sy: row * I_CH, sw: I_CW, sh: I_CH };
 }
 
 export const ITEM_SPRITES = {
@@ -165,7 +198,7 @@ const P_CH = Math.round(1152 / 5);   // 230
 
 function particleSprites(row: number): SpriteDef[] {
     return [0, 1, 2, 3].map(col => ({
-        sheet: '/particles.png',
+        sheet: '/assets/maps/particles.png',
         sx: col * P_CW,
         sy: row * P_CH,
         sw: P_CW,
@@ -179,6 +212,62 @@ export const PARTICLE_SPRITES = {
     spark: particleSprites(2),   // 4 frames
     explosion: particleSprites(3),   // 4 frames
     shell: particleSprites(4),   // 4 frames
+};
+
+// ─── ANIMATED PLAYER SPRITES ────────────────────────────────
+// These are 4x3 grids of 32x32 cells (from SpriteCook output)
+// ────────────────────────────────────────────────────────────
+const A_CW = 32;
+const A_CH = 32;
+
+function animSprite(sheet: string, col: number, row: number): SpriteDef {
+    return { sheet, sx: col * A_CW, sy: row * A_CH, sw: A_CW, sh: A_CH };
+}
+
+function animSeq(sheet: string, count: number): SpriteDef[] {
+    const seq: SpriteDef[] = [];
+    for (let i = 0; i < count; i++) {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        seq.push(animSprite(sheet, col, row));
+    }
+    return seq;
+}
+
+export const PLAYER_ANIMATIONS = {
+    idle: animSeq('/assets/char/idle (1).png', 4),       // First 4 frames for idle
+    run: animSeq('/assets/char/run (1).png', 8),         // First 8 frames for walk/run
+    jump: animSeq('/assets/char/jump (1).png', 4),       // First 4 frames for jump sequence
+    somersault: animSeq('/assets/char/sommersault (1).png', 8), // 8 frames for the rolling maneuver
+    hurt: animSeq('/assets/char/hurt (1).png', 2),       // 2 impact frames
+    death: animSeq('/assets/char/death (1).png', 8),     // 8 frames of dying sequence
+};
+
+/** Scenario Pros from the new unified sheet (Estimated 32x32 or 64x64 grid) */
+export const SCENARIO_SPRITES = {
+    barrel: animSprite('/assets/maps/scenario.png', 0, 0),
+    crate: animSprite('/assets/maps/scenario.png', 1, 0),
+    barrier: animSprite('/assets/maps/scenario.png', 2, 0),
+    fence: animSprite('/assets/maps/scenario.png', 3, 0),
+};
+
+/** Particles sheet — each row is a different effect (64x64 cells typically) */
+const P_W = 64;
+const P_H = 64;
+function animRow(row: number, count: number): SpriteDef[] {
+    const seq: SpriteDef[] = [];
+    for (let i = 0; i < count; i++) {
+        seq.push({ sheet: '/particles.png', sx: i * P_W, sy: row * P_H, sw: P_W, sh: P_H });
+    }
+    return seq;
+}
+
+export const PARTICLE_ANIMATIONS = {
+    blood: animRow(0, 4),
+    dust: animRow(1, 4),
+    spark: animRow(2, 4),
+    explosion: animRow(3, 4),
+    shell: animRow(4, 4),
 };
 
 // ─── Utility: draw a sprite onto a canvas context ──────────

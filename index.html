@@ -1,60 +1,68 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
-
+<html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>Soldat Web</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@400;700;900&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="/src/style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Soldat Web — Agents of Combat</title>
+    <link rel="stylesheet" href="src/style.css">
 </head>
-
 <body>
-  <div id="game-container">
-    <!-- O Canvas da Antigravity onde o jogo roda -->
-    <canvas id="gameCanvas"></canvas>
+    <div id="game-container">
+        <!-- The Game Viewport (Three.js + HUD Canvas) -->
+        <canvas id="gameCanvas"></canvas>
+        <canvas id="hudCanvas"></canvas>
 
-    <!-- Overlay de UI -->
-    <div id="ui-layer">
+        <!-- UI Overlay for Menus -->
+        <div id="ui-layer">
 
-      <!-- MENU INICIAL -->
-      <div id="main-menu" class="menu-screen">
-        <h1 class="game-title">SOLDAT <span>WEB</span></h1>
-        <div class="menu-options">
-          <button id="btn-start">ENTRAR NA PARTIDA</button>
-          <button id="btn-servers">LISTA DE SERVIDORES</button>
-          <button id="btn-settings">CONFIGURAÇÕES</button>
-          <button id="btn-exit" class="exit-btn">SAIR</button>
+            <!-- MAIN MENU (TapTap Style) -->
+            <div id="main-menu" class="menu-screen">
+                <h1 class="game-title">SOLDAT <span>WEB</span></h1>
+                <div class="version-tag">Alpha v0.2.0 — Agents of Combat</div>
+
+                <div class="agent-card">
+                  <label for="game-mode">MODO DE JOGO</label>
+                  <select id="game-mode" class="taptap-select">
+                    <option value="DEATHMATCH">TEAM DEATHMATCH</option>
+                    <option value="CTF">CAPTURE A BANDEIRA</option>
+                  </select>
+                </div>
+
+                <div class="agent-card">
+                  <label for="player-name">IDENTIFICAÇÃO DO AGENTE</label>
+                  <input type="text" id="player-name" value="GUEST_AGENT" maxlength="12">
+                </div>
+
+                <div class="btn-group">
+                    <button id="btn-start" class="taptap-btn">
+                      MISSÃO SOLO
+                      <div class="sub-tag">LOCAL BOTS</div>
+                    </button>
+                    
+                    <button id="btn-online" class="taptap-btn online">
+                      OPERAR ONLINE
+                      <div class="sub-tag">EM BREVE</div>
+                    </button>
+
+                    <button id="btn-settings" class="taptap-btn secondary">
+                      OPÇÕES
+                    </button>
+                </div>
+            </div>
+
+            <!-- PAUSE MENU (ESC) — Handled in HUD.ts but we can style common classes here if needed -->
+            <!-- The actual pause menu and G-menu are currently rendered on the 2D HUD Canvas for frame-perfect sync -->
+
+            <!-- ORIENTATION HELPER (Mobile) -->
+            <div id="orientation-overlay">
+                <div class="rotate-icon">📱</div>
+                <p>POR FAVOR, USE O MODO PAISAGEM</p>
+                <span>A experiência de combate requer visão tática completa.</span>
+            </div>
         </div>
-        <div class="version-tag">v0.1.0 Alpha</div>
-      </div>
-
-      <!-- MENU DE PAUSA (In-Game) -->
-      <div id="pause-menu" class="menu-screen hidden">
-        <div class="pause-content">
-          <h2>PAUSADO</h2>
-          <button id="btn-resume">CONTINUAR</button>
-          <button id="btn-settings-pause">CONFIGURAÇÕES</button>
-          <button id="btn-leave" class="leave-btn">SAIR DA PARTIDA</button>
-        </div>
-      </div>
-
-      <!-- Overlay de Orientação (Mobile) -->
-      <div id="orientation-overlay">
-        <div class="rotate-icon">🔄</div>
-        <p>POR FAVOR, GIRE SEU APARELHO</p>
-        <span>O Soldat é melhor jogado em modo Paisagem (Landscape)</span>
-      </div>
-
     </div>
-  </div>
-  <script type="module" src="/src/main.ts"></script>
-</body>
 
+    <!-- Scripts -->
+    <script type="module" src="/src/main.ts"></script>
+</body>
 </html>

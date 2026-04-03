@@ -192,9 +192,12 @@ document.getElementById('btn-new-map')?.addEventListener('click', () => {
 document.getElementById('btn-clear-map')?.addEventListener('click', () => {
     if (confirm('Limpar todo o mapa?')) mapEditor.clearAll();
 });
+import { megaMap } from '../game/maps/megaMap';
+// ... existing imports ...
+
 document.getElementById('btn-load-sample')?.addEventListener('click', () => {
-    if (confirm('Carregar mapa de exemplo? Isso irá sobrescrever o mapa atual.')) {
-        mapEditor.loadMapData(trincheiras as any);
+    if (confirm('Carregar mapa de exemplo (MEGAMAP 4x)? Isso irá sobrescrever o mapa atual.')) {
+        mapEditor.loadMapData(megaMap as any);
     }
 });
 
@@ -594,7 +597,17 @@ btnTestVisual?.addEventListener('click', () => {
 });
 
 btnTestPhysics?.addEventListener('click', () => {
-    mapEditor.testViewMode = 'PHYSICS';
-    btnTestPhysics.classList.add('active');
-    btnTestVisual?.classList.remove('active');
+    (mapEditor.testViewMode = 'PHYSICS', btnTestPhysics.classList.add('active'), btnTestVisual?.classList.remove('active'));
 });
+
+// ─────────────────────────────────────────────
+// Global Helpers for UI
+// ─────────────────────────────────────────────
+(window as any).setLibraryMaterial = (mat: Material) => {
+    mapEditor.brushMaterial = mat;
+    mapEditor.newPolyMaterial = mat;
+    // Switch to brush tool automatically
+    const brushBtn = document.querySelector('[data-tool="BRUSH"]') as HTMLButtonElement;
+    if (brushBtn) brushBtn.click();
+    console.log(`[Library] Switched to ${mat}`);
+};
