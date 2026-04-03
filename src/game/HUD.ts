@@ -347,26 +347,27 @@ export class HUD {
     }
 
     renderScoreboard(ctx: CanvasRenderingContext2D, player: Player, bots: Player[], gameMode: GameModeManager, screenW: number, screenH: number): void {
-        const w = 700;
-        const h = 500;
+        const isMobile = screenH < 500;
+        const w = Math.min(screenW * 0.9, 700);
+        const h = Math.min(screenH * 0.9, 500);
         const x = (screenW - w) / 2;
         const y = (screenH - h) / 2;
 
         ctx.save();
         ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        this.drawRoundRect(ctx, x, y, w, h, 20);
+        this.drawRoundRect(ctx, x, y, w, h, isMobile ? 12 : 20);
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = isMobile ? 2 : 3;
         ctx.stroke();
 
         ctx.fillStyle = '#fff';
-        ctx.font = '40px "Luckiest Guy", cursive';
+        ctx.font = isMobile ? '24px "Luckiest Guy", cursive' : '40px "Luckiest Guy", cursive';
         ctx.textAlign = 'center';
-        ctx.fillText(gameMode.mode === GameModeType.CTF ? 'CAPTURE A BANDEIRA' : 'TEAM DEATHMATCH', x + w / 2, y + 50);
+        ctx.fillText(gameMode.mode === GameModeType.CTF ? 'CAPTURE A BANDEIRA' : 'TEAM DEATHMATCH', x + w / 2, y + (isMobile ? 30 : 50));
 
-        ctx.font = '24px "Luckiest Guy", cursive';
+        ctx.font = isMobile ? '16px "Luckiest Guy", cursive' : '24px "Luckiest Guy", cursive';
         const scoreText = `ALFA: ${gameMode.scoreAlpha} / ${gameMode.maxScore}  -  BRAVO: ${gameMode.scoreBravo} / ${gameMode.maxScore}`;
-        ctx.fillText(scoreText, x + w / 2, y + 90);
+        ctx.fillText(scoreText, x + w / 2, y + (isMobile ? 60 : 90));
 
         const allPlayers = [player, ...bots];
         const alpha = allPlayers.filter(p => p.team === Team.ALPHA).sort((a,b) => b.score - a.score);

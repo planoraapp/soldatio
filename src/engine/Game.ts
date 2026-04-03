@@ -399,32 +399,34 @@ export class Game {
         }
 
         this.gameModeManager.render(ctx, camX, camY, zoom);
-
-        // Render particles (explosions, blood, trail FX)
         this.particles.render(ctx, camX, camY, zoom);
 
-        // Game status indicator (top-left)
+        // Game status indicator (top-left) - Responsive scaling
+        const isMobileHUD = h < 500;
+        const panelW = isMobileHUD ? 160 : 200;
+        const panelH = isMobileHUD ? 40 : 48;
+        
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(8, 8, 200, 48);
+        ctx.fillRect(8, 8, panelW, panelH);
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
-        ctx.strokeRect(8, 8, 200, 48);
+        ctx.strokeRect(8, 8, panelW, panelH);
 
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px "Luckiest Guy", cursive';
+        ctx.font = isMobileHUD ? 'bold 12px "Luckiest Guy", cursive' : 'bold 16px "Luckiest Guy", cursive';
         ctx.textAlign = 'left';
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 4;
         
         const modeLabel = this.gameModeManager.mode === 'CTF' ? 'CAPTURAS' : 'PONTOS';
-        ctx.fillText(`${this.gameModeManager.mode}: ${this.gameModeManager.maxScore} ${modeLabel}`, 15, 26);
+        ctx.fillText(`${this.gameModeManager.mode}: ${this.gameModeManager.maxScore} ${modeLabel}`, 15, isMobileHUD ? 22 : 26);
         
-        ctx.font = '14px Orbitron, monospace';
+        ctx.font = isMobileHUD ? '10px Orbitron, monospace' : '14px Orbitron, monospace';
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#3498db'; // ALPHA
-        ctx.fillText(`ALPHA: ${this.gameModeManager.scoreAlpha}`, 15, 46);
+        ctx.fillText(`ALPHA: ${this.gameModeManager.scoreAlpha}`, 15, isMobileHUD ? 36 : 46);
         ctx.fillStyle = '#e74c3c'; // BRAVO
-        ctx.fillText(`BRAVO: ${this.gameModeManager.scoreBravo}`, 120, 46);
+        ctx.fillText(`BRAVO: ${this.gameModeManager.scoreBravo}`, isMobileHUD ? 90 : 120, isMobileHUD ? 36 : 46);
 
         if (this.input.isKeyDown('Tab')) {
             this.hud.renderScoreboard(ctx, this.player, this.bots, this.gameModeManager, w, h);
