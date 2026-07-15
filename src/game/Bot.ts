@@ -45,6 +45,8 @@ class BotInput implements IInput {
 export class Bot extends Player {
     botInput: BotInput = new BotInput();
     target: Player | null = null;
+    /** Objetivo de movimento (CTF): quando definido, o bot navega até aqui em vez de perseguir o alvo */
+    objectivePos: Vector2 | null = null;
 
     // AI state
     private stateTimer: number = 0;
@@ -132,7 +134,19 @@ export class Bot extends Player {
         this.botInput.mouseWorldY = this.target.pos.y - 12 + this.aimError.y;
 
         // 2. MOVEMENT (less robotic, add small random pauses)
-        if (Math.random() > 0.02) { // 2% chance to "hesitate" per frame
+        if (this.objectivePos) {
+            // Modo objetivo (CTF): navega até o ponto, ainda atirando no alvo
+            const dx = this.objectivePos.x - this.pos.x;
+            if (Math.abs(dx) > 50) {
+                this.botInput.setKeyDown('KeyD', dx > 0);
+                this.botInput.setKeyDown('KeyA', dx < 0);
+            }
+            // Objetivo acima → pular/jato
+            if (this.objectivePos.y < this.pos.y - 80) {
+                if (this.isGrounded) this.botInput.setKeyDown('KeyW', true);
+                else if (this.fuel > 30) this.botInput.mouseRight = Math.random() > 0.3;
+            }
+        } else if (Math.random() > 0.02) { // 2% chance to "hesitate" per frame
             if (dist > 200) {
                 if (this.target.pos.x > this.pos.x + 40) {
                     this.botInput.setKeyDown('KeyD', true);

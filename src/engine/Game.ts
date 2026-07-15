@@ -11,9 +11,10 @@ import { WeatherSystem } from '../game/Weather';
 import { GrenadeManager } from '../game/Grenade';
 import { PickupManager } from '../game/PickupManager';
 import { TouchControls } from './TouchControls';
-import { trincheiras } from '../game/maps/trincheiras';
+import { refinaria, REFINARIA_FLAGS } from '../game/maps/refinaria';
 import { GUIManager, GameUIState } from './GUIManager';
 import { AudioManager } from './AudioManager';
+import { CTFManager } from '../game/CTF';
 
 /**
  * Main game class: orchestrates the game loop, all systems, and rendering.
@@ -35,6 +36,7 @@ export class Game {
     touchControls: TouchControls;
     gui: GUIManager;
     audio: AudioManager;
+    ctf: CTFManager;
 
     state: GameUIState = 'MAIN_MENU';
 
@@ -50,16 +52,21 @@ export class Game {
         // Initialize systems
         this.input = new Input(canvas);
         this.camera = new Camera();
-        this.map = new GameMap(trincheiras);
+        this.map = new GameMap(refinaria);
 
-        const spawnPos = this.map.getRandomSpawn();
+        // === MODO CTF: jogador no time azul + 3 aliados vs 4 vermelhos ===
+        this.ctf = new CTFManager(REFINARIA_FLAGS.blue, REFINARIA_FLAGS.red, 5);
+
+        const spawnPos = this.map.getTeamSpawn(1);
         this.player = new Player(spawnPos);
-        this.player.spawnProvider = () => this.map.getRandomSpawn();
+        this.player.setTeam(1);
+        this.player.spawnProvider = () => this.map.getTeamSpawn(1);
 
-        // Add some bots
-        for (let i = 0; i < 3; i++) {
-            const bot = new Bot(this.map.getRandomSpawn());
-            bot.spawnProvider = () => this.map.getRandomSpawn();
+        for (let i = 0; i < 6; i++) {
+            const team = i < 3 ? 1 : 2; // 3 aliados azuis, depois vermelhos
+            const bot = new Bot(this.map.getTeamSpawn(team));
+            bot.setTeam(team);
+            bot.spawnProvider = () => this.map.getTeamSpawn(team);
             this.bots.push(bot);
         }
 
@@ -67,10 +74,10 @@ export class Game {
         this.grenades = new GrenadeManager();
         this.pickups = new PickupManager();
         this.particles = new ParticleSystem(
-            trincheiras.bounds.right - trincheiras.bounds.left,
-            trincheiras.bounds.bottom - trincheiras.bounds.top
+            refinaria.bounds.right - refinaria.bounds.left,
+            refinaria.bounds.bottom - refinaria.bounds.top
         );
-        this.weather = new WeatherSystem(trincheiras.weather || { type: 'none', intensity: 0, windX: 0 });
+        this.weather = new WeatherSystem(refinaria.weather || { type: 'none', intensity: 0, windX: 0 });
         this.hud = new HUD();
         this.touchControls = new TouchControls(this.canvas);
         this.gui = new GUIManager();
@@ -160,10 +167,32 @@ export class Game {
         this.player.update(this.input, collisionPolygons, this.bullets, this.grenades, this.particles, allPlayers);
         this.player.enforceBounds(this.map.data.bounds);
 
-        // 2. Update bots
+        // 2. Update bots — alvo = inimigo vivo mais próximo; objetivo = lógica CTF
         for (const bot of this.bots) {
+            let nearest: Player = this.player;
+            let nearestDist = Infinity;
+            for (const other of allPlayers) {
+                if (other === bot || other.isDead || other.team === bot.team) continue;
+                const d = bot.pos.distance(other.pos);
+                if (d < nearestDist) { nearestDist = d; nearest = other; }
+            }
+
+            // Objetivo CTF
+            const carried = this.ctf.carriedBy(bot);
+            const ownFlag = this.ctf.flags[bot.team - 1];
+            const enemyFlag = this.ctf.flags[bot.team === 1 ? 1 : 0];
+            if (carried) {
+                bot.objectivePos = ownFlag.basePos; // leva pra casa
+            } else if (!ownFlag.atBase && !ownFlag.carrier) {
+                bot.objectivePos = ownFlag.pos; // recupera a própria bandeira caída
+            } else if (!enemyFlag.carrier) {
+                bot.objectivePos = enemyFlag.pos; // ataca a bandeira inimiga
+            } else {
+                bot.objectivePos = null; // combate livre
+            }
+
             bot.updateBot(
-                this.player,
+                nearest,
                 collisionPolygons,
                 this.bullets,
                 this.grenades,
@@ -220,6 +249,12 @@ export class Game {
             if (!wasDead && hit.player.isDead) {
                 this.audio.playDeath(this.getSoundPan(hit.player.pos.x));
             }
+        }
+
+        // CTF: bandeiras, capturas e placar
+        this.ctf.update(allPlayers, this.map.data.bounds.bottom);
+        for (const ev of this.ctf.events) {
+            if (ev.type === 'capture') this.camera.applyShake(10);
         }
 
         // Update systems
@@ -304,12 +339,19 @@ export class Game {
             bot.render(ctx);
         }
 
+        // Bandeiras CTF (mundo)
+        this.ctf.render(ctx);
+
         this.particles.render(ctx);
         this.map.renderSceneryFront(ctx);
         ctx.restore();
 
         this.weather.render(ctx);
         this.hud.render(ctx, this.player, this.input, w, h);
+        if (this.state === 'PLAYING' || this.state === 'PAUSED') {
+            this.ctf.renderScoreboard(ctx, w);
+            this.ctf.renderVictory(ctx, w, h);
+        }
         this.touchControls.render(ctx);
         this.hud.renderCrosshairAt(ctx, this.input.mouseX, this.input.mouseY);
 

@@ -4,7 +4,8 @@ import { AssetEditor } from './AssetEditor';
 import { ImageLoader } from './ImageLoader';
 import { exportMapJSON, exportMapTS, downloadText } from './ExportManager';
 import { PolygonType, Material } from '../game/GameMap';
-import { trincheiras } from '../game/maps/trincheiras';
+import { refinaria } from '../game/maps/refinaria';
+import { ASSET_LIBRARY } from '../game/Assets';
 import { PRESETS, CATEGORIES } from './Presets';
 import { drawThumbnail } from './TerrainTextures';
 import { SpritePickerPanel } from './SpritePickerPanel';
@@ -21,6 +22,8 @@ const imageLoader = new ImageLoader(() => {
 // ─────────────────────────────────────────────
 const mapCanvas = document.getElementById('map-canvas') as HTMLCanvasElement;
 const mapEditor = new MapEditor(mapCanvas, imageLoader);
+// Exposto para depuração
+(window as any).mapEditor = mapEditor;
 
 // Status hooks
 mapEditor.onStatusUpdate = (msg) => {
@@ -133,6 +136,28 @@ document.getElementById('spawn-team')?.addEventListener('change', e => {
 document.getElementById('pickup-type')?.addEventListener('change', e => {
     mapEditor.pickupTypeStr = (e.target as HTMLSelectElement).value as 'health' | 'grenades';
 });
+// Popula o seletor de scenery com a biblioteca procedural completa (por categoria)
+(() => {
+    const sel = document.getElementById('scenery-type') as HTMLSelectElement | null;
+    if (!sel) return;
+    sel.innerHTML = '';
+    const byCat: Record<string, string[]> = {};
+    for (const [name, def] of Object.entries(ASSET_LIBRARY)) {
+        (byCat[def.category] ??= []).push(name);
+    }
+    for (const [cat, names] of Object.entries(byCat)) {
+        const grp = document.createElement('optgroup');
+        grp.label = cat.toUpperCase();
+        for (const n of names.sort()) {
+            const opt = document.createElement('option');
+            opt.value = n;
+            opt.textContent = n.replace(/_/g, ' ');
+            grp.appendChild(opt);
+        }
+        sel.appendChild(grp);
+    }
+    mapEditor.sceneryTypeStr = sel.value;
+})();
 document.getElementById('scenery-type')?.addEventListener('change', e => {
     mapEditor.sceneryTypeStr = (e.target as HTMLSelectElement).value;
 });
@@ -193,8 +218,8 @@ document.getElementById('btn-clear-map')?.addEventListener('click', () => {
     if (confirm('Limpar todo o mapa?')) mapEditor.clearAll();
 });
 document.getElementById('btn-load-sample')?.addEventListener('click', () => {
-    if (confirm('Carregar mapa de exemplo? Isso irá sobrescrever o mapa atual.')) {
-        mapEditor.loadMapData(trincheiras as any);
+    if (confirm('Carregar mapa de exemplo (Refinaria do Pântano — CTF)? Isso irá sobrescrever o mapa atual.')) {
+        mapEditor.loadMapData(refinaria as any);
     }
 });
 

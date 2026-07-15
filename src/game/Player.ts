@@ -34,6 +34,9 @@ export class Player {
     fuel: number = MAX_FUEL;
     maxFuel: number = MAX_FUEL;
 
+    /** Time: 0 = sem time (FFA), 1 = azul, 2 = vermelho */
+    team: number = 0;
+
     isGrounded: boolean = false;
     isCrouching: boolean = false;
     isDead: boolean = false;
@@ -89,6 +92,20 @@ export class Player {
         this.pos = spawnPos.clone();
         this.prevPos = spawnPos.clone();
         this.initAmmo();
+    }
+
+    /** Define o time e aplica o uniforme correspondente ao gostek */
+    setTeam(team: number): void {
+        this.team = team;
+        if (team === 1) {
+            this.gostek.shirtColor = '#3a6ea8';
+            this.gostek.pantsColor = '#2c4e74';
+            this.gostek.headgearColor = '#325e8e';
+        } else if (team === 2) {
+            this.gostek.shirtColor = '#b04038';
+            this.gostek.pantsColor = '#7e3028';
+            this.gostek.headgearColor = '#963830';
+        }
     }
 
     private initAmmo(): void {
@@ -489,7 +506,8 @@ export class Player {
                 w.bulletGravity,
                 w.damage,
                 w.bulletLifetime,
-                w.bulletTrailColor
+                w.bulletTrailColor,
+                this.team
             );
         }
 

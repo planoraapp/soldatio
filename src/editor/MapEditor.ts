@@ -4,6 +4,7 @@ import { getPattern, pregenerate } from './TerrainTextures';
 import type { PresetDef } from './Presets';
 import type { SpriteSelection } from './SpritePickerPanel';
 import { getImage } from '../engine/SpriteSheet';
+import { ASSET_LIBRARY, drawAsset, lowPolyFacetFill, topGrassBand } from '../game/Assets';
 
 // ──────────────────────────────────────────────
 // Types
@@ -17,11 +18,17 @@ export interface EditPolygon {
     color: string;
     shadowColor: string;
     material: Material;
+    /** Preenchimento low-poly facetado (nova direção de arte) */
+    facet?: boolean;
+    grassTop?: string;
 }
 
 interface EditSpawn { id: string; x: number; y: number; team: number; }
 interface EditPickup { id: string; x: number; y: number; type: 'health' | 'grenades'; timer: number; }
-interface EditScenery { id: string; x: number; y: number; type: string; scale: number; }
+interface EditScenery {
+    id: string; x: number; y: number; type: string; scale: number;
+    rotation: number; zIndex: number; team?: number; seed?: number;
+}
 
 /** A stamped sprite placement on the map canvas */
 export interface SpritePlacement {
@@ -72,6 +79,8 @@ export class MapEditor {
 
     private selectedId: string | null = null;
     private selectedVertexIdx = -1;
+    private selectedSceneryId: string | null = null;
+    private isDraggingScenery = false;
 
     // Draw in progress
     private drawVerts: EditVertex[] = [];
@@ -228,7 +237,18 @@ export class MapEditor {
         const t = 12 / this.zoom;
         return this.pickups.find(p => Math.hypot(p.x - wx, p.y - wy) < t) ?? null;
     }
+    /** Hit-test com o bounding box real do asset (origem = base inferior central) */
+    private sceneryHit(s: EditScenery, wx: number, wy: number): boolean {
+        const def = ASSET_LIBRARY[s.type];
+        const w = (def?.w ?? 32) * s.scale;
+        const h = (def?.h ?? 32) * s.scale;
+        return wx > s.x - w / 2 && wx < s.x + w / 2 && wy > s.y - h && wy < s.y + 6;
+    }
+
     private findSceneryAt(wx: number, wy: number): EditScenery | null {
+        for (let i = this.scenery.length - 1; i >= 0; i--) {
+            if (this.sceneryHit(this.scenery[i], wx, wy)) return this.scenery[i];
+        }
         const t = 14 / this.zoom;
         return this.scenery.find(s => Math.hypot(s.x - wx, s.y - wy) < t) ?? null;
     }
@@ -325,7 +345,10 @@ export class MapEditor {
                 this.onCountChange?.();
                 break;
             case 'SCENERY':
-                this.scenery.push({ id: crypto.randomUUID(), x: this.snap(w.x), y: this.snap(w.y), type: this.sceneryTypeStr, scale: 1 });
+                this.scenery.push({
+                    id: crypto.randomUUID(), x: this.snap(w.x), y: this.snap(w.y),
+                    type: this.sceneryTypeStr, scale: 1, rotation: 0, zIndex: -1,
+                });
                 this.onCountChange?.();
                 break;
         }
@@ -334,6 +357,19 @@ export class MapEditor {
     private _spaceDown = false;
 
     private startSelect(sx: number, sy: number, w: EditVertex): void {
+        // Scenery tem prioridade de seleção (fica "acima" do terreno)
+        const sc = this.findSceneryAt(w.x, w.y);
+        if (sc) {
+            this.saveHistory();
+            this.selectedSceneryId = sc.id;
+            this.isDraggingScenery = true;
+            this.selectedId = null;
+            this.onSelectionChange?.(null);
+            this.onStatusUpdate?.(`Asset: ${sc.type} · arraste p/ mover · [ ] gira · +/- escala · Z profundidade · V variação · Del apaga`);
+            return;
+        }
+        this.selectedSceneryId = null;
+
         const selPoly = this.polygons.find(p => p.id === this.selectedId) ?? null;
 
         // Check vertex handles first
@@ -453,6 +489,16 @@ export class MapEditor {
             return;
         }
 
+        // Scenery drag
+        if (this.isDraggingScenery && this.selectedSceneryId) {
+            const sc = this.scenery.find(s => s.id === this.selectedSceneryId);
+            if (sc) {
+                sc.x = this.snap(w.x);
+                sc.y = this.snap(w.y);
+            }
+            return;
+        }
+
         // Polygon drag
         if (this.isDraggingPoly) {
             const poly = this.polygons.find(p => p.id === this.selectedId);
@@ -471,6 +517,7 @@ export class MapEditor {
         this.isPanning = false;
         this.isDraggingVertex = false;
         this.isDraggingPoly = false;
+        this.isDraggingScenery = false;
         this.isBrushDown = false;
         this.imageLoader.onMouseUp();
         if (this.tool === 'PAN') this.canvas.style.cursor = 'grab';
@@ -495,6 +542,28 @@ export class MapEditor {
             this.onSelectionChange?.(null);
         }
         if (e.code === 'Enter' && this.tool === 'DRAW') { this.closePoly(); }
+
+        // ── Manipulação do asset selecionado ──
+        const sc = this.selectedSceneryId
+            ? this.scenery.find(s => s.id === this.selectedSceneryId)
+            : null;
+        if (sc) {
+            if (e.code === 'BracketLeft') { sc.rotation -= Math.PI / 12; return; }
+            if (e.code === 'BracketRight') { sc.rotation += Math.PI / 12; return; }
+            if (e.code === 'Equal' || e.code === 'NumpadAdd') { sc.scale = Math.min(5, sc.scale * 1.1); return; }
+            if (e.code === 'Minus' || e.code === 'NumpadSubtract') { sc.scale = Math.max(0.2, sc.scale / 1.1); return; }
+            if (e.code === 'KeyZ' && !e.ctrlKey) { sc.zIndex = sc.zIndex < 0 ? 1 : -1; this.onStatusUpdate?.(`z-index: ${sc.zIndex < 0 ? 'atrás' : 'frente'} do jogador`); return; }
+            if (e.code === 'KeyV') { sc.seed = ((sc.seed ?? 1) + 1) | 0; return; } // variação
+            if (e.code === 'Delete' || e.code === 'Backspace') {
+                this.saveHistory();
+                this.scenery = this.scenery.filter(s => s.id !== sc.id);
+                this.selectedSceneryId = null;
+                this.onCountChange?.();
+                return;
+            }
+            if (e.code === 'Escape') { this.selectedSceneryId = null; }
+        }
+
         if ((e.code === 'Delete' || e.code === 'Backspace') && this.selectedId) {
             this.saveHistory();
             this.polygons = this.polygons.filter(p => p.id !== this.selectedId);
@@ -692,16 +761,26 @@ export class MapEditor {
             }
             ctx.closePath();
 
-            // ── Pixel-art texture fill ──
+            // ── Preenchimento: facetado low-poly (nova arte) ou textura pixel-art ──
             ctx.save();
             ctx.clip();
-            const pattern = getPattern(poly.material, ctx);
-            if (pattern) {
-                ctx.fillStyle = pattern;
-                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            if (poly.facet) {
+                // desenha em espaço de tela usando os vértices projetados
+                const screenVerts = poly.vertices.map(v => {
+                    const [sx, sy] = this.worldToScreen(v.x, v.y);
+                    return { x: sx, y: sy };
+                });
+                lowPolyFacetFill(ctx, screenVerts, poly.color, Math.max(24, 110 * this.zoom));
+                if (poly.grassTop) topGrassBand(ctx, screenVerts, poly.grassTop, Math.max(4, 14 * this.zoom));
             } else {
-                ctx.fillStyle = poly.color;
-                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                const pattern = getPattern(poly.material, ctx);
+                if (pattern) {
+                    ctx.fillStyle = pattern;
+                    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                } else {
+                    ctx.fillStyle = poly.color;
+                    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                }
             }
 
             // In Test Mode + Visual Mode, we don't show the physics tint
@@ -796,17 +875,41 @@ export class MapEditor {
         const { ctx } = this;
         for (const s of this.scenery) {
             const [sx, sy] = this.worldToScreen(s.x, s.y);
+            const def = ASSET_LIBRARY[s.type];
+
             ctx.save();
-            ctx.strokeStyle = '#aaaaaa';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(sx - 8, sy - 8, 16, 16);
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
-            ctx.fillRect(sx - 8, sy - 8, 16, 16);
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.font = '9px JetBrains Mono, monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(s.type.slice(0, 3).toUpperCase(), sx, sy + 3);
+            ctx.translate(sx, sy);
+            ctx.scale(this.zoom, this.zoom);
+            if (!drawAsset(ctx, s.type, 0, 0, s.scale, s.rotation, s.seed, s.team)) {
+                // fallback: caixinha com o nome (tipo legado)
+                ctx.strokeStyle = '#aaaaaa';
+                ctx.strokeRect(-8, -16, 16, 16);
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.font = '8px JetBrains Mono, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(s.type.slice(0, 4).toUpperCase(), 0, -5);
+            }
             ctx.restore();
+
+            // Realce de seleção: bbox + alça
+            if (s.id === this.selectedSceneryId) {
+                const w = (def?.w ?? 32) * s.scale * this.zoom;
+                const h = (def?.h ?? 32) * s.scale * this.zoom;
+                ctx.save();
+                ctx.strokeStyle = '#6ee7b7';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 4]);
+                ctx.strokeRect(sx - w / 2, sy - h, w, h + 4);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#6ee7b7';
+                ctx.beginPath();
+                ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.font = '10px JetBrains Mono, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${s.type} ×${s.scale.toFixed(1)}`, sx, sy - h - 8);
+                ctx.restore();
+            }
         }
     }
 
@@ -884,6 +987,8 @@ export class MapEditor {
                 color: p.color,
                 material: p.material as any,
                 shadowColor: p.shadowColor,
+                facet: p.facet,
+                grassTop: p.grassTop,
             })),
             spawns: this.spawns.map(s => ({
                 position: { x: s.x, y: s.y } as any,
@@ -897,6 +1002,10 @@ export class MapEditor {
                 x: p.x, y: p.y,
                 type: p.type as any,
                 timer: p.timer,
+            })),
+            scenery: this.scenery.map(s => ({
+                x: s.x, y: s.y, type: s.type, scale: s.scale,
+                rotation: s.rotation, zIndex: s.zIndex, team: s.team, seed: s.seed,
             })),
         };
     }
@@ -917,6 +1026,8 @@ export class MapEditor {
                 color: p.color,
                 shadowColor: p.shadowColor ?? 'rgba(0,0,0,0.35)',
                 material: (p.material as Material) ?? Material.DIRT,
+                facet: p.facet,
+                grassTop: p.grassTop,
             });
         }
         for (const s of data.spawns) {
@@ -924,6 +1035,13 @@ export class MapEditor {
         }
         for (const pk of data.pickups ?? []) {
             this.pickups.push({ id: crypto.randomUUID(), x: pk.x, y: pk.y, type: pk.type as any, timer: pk.timer });
+        }
+        for (const sc of data.scenery ?? []) {
+            this.scenery.push({
+                id: crypto.randomUUID(), x: sc.x, y: sc.y, type: sc.type,
+                scale: sc.scale ?? 1, rotation: sc.rotation ?? 0,
+                zIndex: sc.zIndex ?? -1, team: sc.team, seed: sc.seed,
+            });
         }
         this.onCountChange?.();
     }

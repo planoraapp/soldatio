@@ -65,6 +65,8 @@ export class BulletManager {
 
             // Proper Capsule/Line Segment vs Circle collision mapping
             for (const p of players) {
+                // Fogo amigo desativado: bala não atinge o próprio time
+                if (b.ownerTeam !== 0 && (p as any).team === b.ownerTeam) continue;
                 // Vector from oldPos to player
                 const toPlayer = p.pos.sub(oldPos);
                 

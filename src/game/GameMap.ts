@@ -1,5 +1,6 @@
 import { Vector2 } from '../engine/Vector2';
 import { loadAllSprites, getTerrainPattern, getImage as getSpriteImage } from '../engine/SpriteSheet';
+import { lowPolyFacetFill, topGrassBand, drawAsset, drawMountainRange, drawIndustrialSkyline } from './Assets';
 
 // ========================
 // Polygon Types & Materials
@@ -50,6 +51,10 @@ export interface MapPolygon {
     material?: Material;
     /** Optional: shadow color at bottom edges */
     shadowColor?: string;
+    /** Render with low-poly faceted fill (new art direction) */
+    facet?: boolean;
+    /** Optional grass/moss band color along top edges */
+    grassTop?: string;
 }
 
 export interface SpawnPoint {
@@ -68,7 +73,7 @@ export interface ParallaxLayer {
 }
 
 export interface ParallaxElement {
-    type: 'polygon' | 'circle' | 'rect';
+    type: 'polygon' | 'circle' | 'rect' | 'painter';
     x: number;
     y: number;
     width?: number;
@@ -78,19 +83,27 @@ export interface ParallaxElement {
     color: string;
     opacity?: number;
     image?: string;
+    /** Painter procedural (Assets.ts): montanhas ou skyline industrial */
+    painter?: 'mountains' | 'industrial';
+    /** Parâmetros do painter: [startX, endX, baseY, alturaPico?] */
+    painterArgs?: number[];
+    seed?: number;
 }
 
 /** Scenery decoration (props) */
 export interface SceneryItem {
     x: number;
     y: number;
-    type: 'crate' | 'barrel' | 'sandbag' | 'flag' | 'pillar' | 'bush' | 'sign';
+    /** Nome de asset da ASSET_LIBRARY (Assets.ts) ou tipo legado do spritesheet */
+    type: string;
     scale?: number;
     rotation?: number;
     /** Render order: < 0 behind player, > 0 in front */
     zIndex: number;
     color?: string;
     team?: number;
+    /** Seed opcional para variação estável do asset procedural */
+    seed?: number;
 }
 
 export enum PickupType {
@@ -232,7 +245,14 @@ export class GameMap {
 
         for (const el of layer.elements) {
             ctx.globalAlpha = el.opacity ?? 1;
-            if (el.image) {
+            if (el.type === 'painter' && el.painter && el.painterArgs) {
+                const [sx, ex, by, ph] = el.painterArgs;
+                if (el.painter === 'mountains') {
+                    drawMountainRange(ctx, sx, ex, by, ph ?? 400, el.color, el.seed ?? 1);
+                } else {
+                    drawIndustrialSkyline(ctx, sx, ex, by, el.color, el.seed ?? 1);
+                }
+            } else if (el.image) {
                 const img = this.getImage(el.image);
                 if (img.complete) {
                     const w = el.width || img.width;
@@ -325,6 +345,12 @@ export class GameMap {
         }
         ctx.closePath();
 
+        if (poly.facet) {
+            lowPolyFacetFill(ctx, poly.vertices, poly.color);
+            if (poly.grassTop) topGrassBand(ctx, poly.vertices, poly.grassTop);
+            return;
+        }
+
         // Try sprite texture pattern
         const mat = poly.material as string | undefined;
         const pattern = mat ? getTerrainPattern(mat, ctx) : null;
@@ -351,18 +377,23 @@ export class GameMap {
         }
         ctx.closePath();
 
-        // Fill with sprite texture or fallback colour
-        const mat = poly.material as string | undefined;
-        const pattern = mat ? getTerrainPattern(mat, ctx) : null;
-        if (pattern) {
-            ctx.save();
-            ctx.clip();
-            ctx.fillStyle = pattern;
-            ctx.fillRect(-10000, -10000, 30000, 30000);
-            ctx.restore();
+        if (poly.facet) {
+            lowPolyFacetFill(ctx, poly.vertices, poly.color);
+            if (poly.grassTop) topGrassBand(ctx, poly.vertices, poly.grassTop);
         } else {
-            ctx.fillStyle = poly.color;
-            ctx.fill();
+            // Fill with sprite texture or fallback colour
+            const mat = poly.material as string | undefined;
+            const pattern = mat ? getTerrainPattern(mat, ctx) : null;
+            if (pattern) {
+                ctx.save();
+                ctx.clip();
+                ctx.fillStyle = pattern;
+                ctx.fillRect(-10000, -10000, 30000, 30000);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = poly.color;
+                ctx.fill();
+            }
         }
 
         // Edge shadow: draw bottom edges darker for depth illusion
@@ -442,6 +473,11 @@ export class GameMap {
     }
 
     private renderSceneryItem(ctx: CanvasRenderingContext2D, item: SceneryItem): void {
+        // Nova biblioteca procedural tem prioridade
+        if (drawAsset(ctx, item.type, item.x, item.y, item.scale || 1, item.rotation || 0, item.seed, item.team)) {
+            return;
+        }
+
         ctx.save();
         ctx.translate(item.x, item.y);
         const sc = item.scale || 1;
@@ -505,6 +541,13 @@ export class GameMap {
                 p.type === PolygonType.SOLID ||
                 p.type === PolygonType.ONLY_BULLETS
         );
+    }
+
+    /** Spawn aleatório de um time específico (fallback: qualquer spawn) */
+    getTeamSpawn(team: number): Vector2 {
+        const teamSpawns = this.data.spawns.filter(s => s.team === team);
+        if (teamSpawns.length === 0) return this.getRandomSpawn();
+        return teamSpawns[Math.floor(Math.random() * teamSpawns.length)].position.clone();
     }
 
     getRandomSpawn(): Vector2 {

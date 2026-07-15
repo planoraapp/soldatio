@@ -10,6 +10,15 @@ const game = new Game(canvas);
 // Start the engine
 game.start();
 
+// Exposto para depuração no console
+(window as any).game = game;
+
+// Log de erros fatais do loop (depuração)
+window.addEventListener('error', (e) => {
+    (window as any).__lastError = `${e.message} @ ${e.filename}:${e.lineno}`;
+    console.error('FATAL:', (window as any).__lastError);
+});
+
 // Bind UI Buttons
 game.gui.bindButton('btn-start', () => {
     game.state = 'PLAYING';
